@@ -3,9 +3,6 @@ import {
   createSystem,
   Types,
   Mesh,
-  SphereGeometry,
-  MeshStandardMaterial,
-  Color,
 } from "@iwsdk/core";
 import {
   GameData,
@@ -14,6 +11,7 @@ import {
   ENERGY_PER_ORB,
 } from "./game.js";
 import { PlayerData, CHARACTER_Z } from "./player.js";
+import { orbStyleRegistry, ACTIVE_STYLE, type OrbStyle, type CollectEffect } from "./orbStyles.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -31,7 +29,19 @@ const COLLECT_R_Y = 0.55;
 export const Orb = createComponent("Orb", {
   active: { type: Types.Boolean, default: false },
   lane: { type: Types.Int8, default: 1 },
+  /** Index into orbStyleRegistry.list() assigned in init() */
+  styleIndex: { type: Types.Int8, default: 0 },
 });
+
+// ─── Active-effect tracking ───────────────────────────────────────────────────
+
+interface ActiveEffect {
+  elapsed: number;
+  duration: number;
+  effect: CollectEffect;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  entities: any[];
+}
 
 // ─── OrbSystem ────────────────────────────────────────────────────────────────
 
@@ -40,22 +50,40 @@ export class OrbSystem extends createSystem({
 }) {
   private spawnTimer = 0;
   private prevState = GameData.state;
+  private time = 0;
+
+  /** Cached style list (populated in init, consistent for the session) */
+  private styles: OrbStyle[] = [];
+
+  /** Live collection effects being animated this frame */
+  private activeEffects: ActiveEffect[] = [];
 
   init(): void {
-    const geo = new SphereGeometry(0.13, 8, 6);
-    const mat = new MeshStandardMaterial({
-      color: new Color(0x00e5ff),
-      emissive: new Color(0x00b0cc),
-      emissiveIntensity: 1.0,
-      roughness: 0.15,
-      metalness: 0.1,
-    });
+    this.styles = orbStyleRegistry.list();
+    if (this.styles.length === 0) {
+      console.warn("OrbSystem: orbStyleRegistry has no styles registered.");
+      return;
+    }
 
     for (let i = 0; i < ORB_POOL_SIZE; i++) {
-      const mesh = new Mesh(geo, mat);
+      // Determine which style this pool slot uses
+      const styleIndex = this._styleIndexFor(i);
+      const style = this.styles[styleIndex];
+      const mesh = style.createMesh();
       mesh.visible = false;
-      this.world.createTransformEntity(mesh).addComponent(Orb);
+      const entity = this.world.createTransformEntity(mesh);
+      entity.addComponent(Orb);
+      entity.setValue(Orb, "styleIndex", styleIndex);
     }
+  }
+
+  /** Pick a style index for a given pool slot */
+  private _styleIndexFor(poolSlot: number): number {
+    if (ACTIVE_STYLE !== null) {
+      const idx = this.styles.findIndex((s) => s.id === ACTIVE_STYLE);
+      return idx >= 0 ? idx : 0;
+    }
+    return poolSlot % this.styles.length;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -65,13 +93,17 @@ export class OrbSystem extends createSystem({
     entity.setValue(Orb, "lane", lane);
     const obj = entity.object3D!;
     obj.position.set(LANE_X[lane], ORB_Y, SPAWN_Z);
+    obj.scale.setScalar(1); // reset scale (pulsing styles may have changed it)
     obj.visible = true;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private deactivateOrb(entity: any): void {
     entity.setValue(Orb, "active", false);
-    if (entity.object3D) entity.object3D.visible = false;
+    if (entity.object3D) {
+      entity.object3D.visible = false;
+      entity.object3D.scale.setScalar(1);
+    }
   }
 
   private resetAll(): void {
@@ -81,14 +113,57 @@ export class OrbSystem extends createSystem({
       }
     }
     this.spawnTimer = 0;
+    // Dispose any lingering effects
+    for (const ae of this.activeEffects) {
+      for (const en of ae.entities) en.dispose();
+    }
+    this.activeEffects.length = 0;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private triggerCollectEffect(entity: any): void {
+    const styleIndex: number = Orb.data.styleIndex[entity.index];
+    const style = this.styles[styleIndex];
+    if (!style) return;
+
+    const effect = style.createCollectEffect();
+    const orbPos = (entity.object3D! as Mesh).position;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const effectEntities: any[] = effect.objects.map((obj) => {
+      const en = this.world.createTransformEntity(obj);
+      en.object3D!.position.copy(orbPos);
+      return en;
+    });
+
+    this.activeEffects.push({
+      elapsed: 0,
+      duration: effect.duration,
+      effect,
+      entities: effectEntities,
+    });
   }
 
   update(delta: number): void {
+    this.time += delta;
+
     // Detect state transitions to reset pool on game end / restart
     const state = GameData.state;
     if (state !== this.prevState) {
       if (state !== "playing") this.resetAll();
       this.prevState = state;
+    }
+
+    // ── Advance active collection effects ────────────────────────────────
+    for (let i = this.activeEffects.length - 1; i >= 0; i--) {
+      const ae = this.activeEffects[i];
+      ae.elapsed += delta;
+      const t = Math.min(ae.elapsed / ae.duration, 1);
+      ae.effect.update(t);
+      if (t >= 1) {
+        for (const en of ae.entities) en.dispose();
+        this.activeEffects.splice(i, 1);
+      }
     }
 
     if (state !== "playing") return;
@@ -107,9 +182,10 @@ export class OrbSystem extends createSystem({
       }
     }
 
-    // ── Move + collect ────────────────────────────────────────────────────
+    // ── Move + collect + animate ──────────────────────────────────────────
     const px = PlayerData.x;
     const py = PlayerData.y;
+    const time = this.time;
 
     for (const entity of this.queries.orbs.entities) {
       if (!Orb.data.active[entity.index]) continue;
@@ -117,7 +193,7 @@ export class OrbSystem extends createSystem({
       const obj = entity.object3D!;
       obj.position.z += speed * delta;
 
-      // Collect check: orb must pass through the character's Z position.
+      // Collect check
       if (
         Math.abs(obj.position.x - px) < COLLECT_R_XZ &&
         Math.abs(obj.position.z - CHARACTER_Z) < COLLECT_R_XZ &&
@@ -125,6 +201,7 @@ export class OrbSystem extends createSystem({
       ) {
         GameData.score += SCORE_PER_ORB;
         GameData.energy = Math.min(100, GameData.energy + ENERGY_PER_ORB);
+        this.triggerCollectEffect(entity);
         this.deactivateOrb(entity);
         continue;
       }
@@ -132,7 +209,13 @@ export class OrbSystem extends createSystem({
       // Passed the player — reclaim
       if (obj.position.z > 3) {
         this.deactivateOrb(entity);
+        continue;
       }
+
+      // Per-style idle animation
+      const styleIndex: number = Orb.data.styleIndex[entity.index];
+      const style = this.styles[styleIndex];
+      if (style) style.update(obj, time);
     }
   }
 }

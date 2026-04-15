@@ -51,6 +51,7 @@ export class OrbSystem extends createSystem({
   private spawnTimer = 0;
   private prevState = GameData.state;
   private time = 0;
+  private nextStyleSpawn = 0;
 
   /** Cached style list (populated in init, consistent for the session) */
   private styles: OrbStyle[] = [];
@@ -174,10 +175,27 @@ export class OrbSystem extends createSystem({
     this.spawnTimer += delta;
     if (this.spawnTimer >= SPAWN_INTERVAL_S) {
       this.spawnTimer -= SPAWN_INTERVAL_S;
+      // First pass: find an inactive orb matching the next style in rotation
+      let spawned = false;
       for (const entity of this.queries.orbs.entities) {
-        if (!Orb.data.active[entity.index]) {
+        if (
+          !Orb.data.active[entity.index] &&
+          Orb.data.styleIndex[entity.index] === this.nextStyleSpawn
+        ) {
           this.activateOrb(entity);
+          this.nextStyleSpawn = (this.nextStyleSpawn + 1) % this.styles.length;
+          spawned = true;
           break;
+        }
+      }
+      // Fallback: preferred style's slots are all active, grab any inactive orb
+      if (!spawned) {
+        for (const entity of this.queries.orbs.entities) {
+          if (!Orb.data.active[entity.index]) {
+            this.activateOrb(entity);
+            this.nextStyleSpawn = (this.nextStyleSpawn + 1) % this.styles.length;
+            break;
+          }
         }
       }
     }

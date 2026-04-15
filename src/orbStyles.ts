@@ -74,8 +74,21 @@ export class OrbStyleRegistry {
 export const orbStyleRegistry = new OrbStyleRegistry();
 
 /**
- * Force a specific style ID for all orbs (for focused testing).
- * Set to null to cycle through all registered styles round-robin.
+ * Focus testing on a single orb style.
+ *
+ * Set to any registered style ID to make every pool slot use that style:
+ *   ACTIVE_STYLE = "blue-zap"
+ *   ACTIVE_STYLE = "orange-pulse"
+ *   ACTIVE_STYLE = "purple-plasma"
+ *   ACTIVE_STYLE = "green-matrix"
+ *   ACTIVE_STYLE = "white-tesla"
+ *   ACTIVE_STYLE = "gold-nova"
+ *   ACTIVE_STYLE = "red-fractal"
+ *   ACTIVE_STYLE = "cyan-hologram"
+ *   ACTIVE_STYLE = "rainbow-spectrum"
+ *   ACTIVE_STYLE = "void-collapse"
+ *
+ * Set to null to cycle through all registered styles round-robin (default).
  */
 export let ACTIVE_STYLE: string | null = null;
 
@@ -258,6 +271,8 @@ orbStyleRegistry.register({
   },
   update(mesh: Object3D, time: number) {
     ((mesh as Mesh).material as ShaderMaterial).uniforms.uTime.value = time;
+    mesh.rotation.y += 0.012;
+    mesh.rotation.x += 0.006;
   },
   createCollectEffect(): CollectEffect {
     return makeZapBurst(0x44aaff, 14, 0.45, 0.7, true);
@@ -288,6 +303,7 @@ orbStyleRegistry.register({
     mat.emissiveIntensity = 0.8 + pulse * 1.2;
     const s = 1 + pulse * 0.06;
     mesh.scale.setScalar(s);
+    mesh.rotation.y += 0.009;
   },
   createCollectEffect(): CollectEffect {
     // Three overlapping rings, slightly staggered
@@ -456,6 +472,8 @@ orbStyleRegistry.register({
   },
   update(mesh: Object3D, time: number) {
     ((mesh as Mesh).material as ShaderMaterial).uniforms.uTime.value = time;
+    mesh.rotation.y += 0.015;
+    mesh.rotation.z -= 0.005;
   },
   createCollectEffect(): CollectEffect {
     // Two bursts from slightly different times for a chaotic arc feel
@@ -665,6 +683,8 @@ orbStyleRegistry.register({
     mat.emissive.setHSL(hue, 1.0, 0.4);
     mat.emissiveIntensity = 1.4 + 0.4 * Math.sin(time * 5.0);
     mesh.scale.setScalar(1 + 0.04 * Math.sin(time * 6.0));
+    mesh.rotation.y += 0.011;
+    mesh.rotation.x = Math.sin(time * 0.9) * 0.2;
   },
   createCollectEffect(): CollectEffect {
     // 7 rings, one per rainbow colour

@@ -1,0 +1,96 @@
+<style>
+  .container {
+    align-items: flex-start;
+    padding: 3;
+    width: 75;
+    display: flex;
+    flex-direction: column;
+    background-color: #09090b;
+    border-color: #27272a;
+    border-width: 0.15;
+    border-radius: 3;
+    opacity: 0.92;
+  }
+
+  #score-text {
+    font-size: 13;
+    font-weight: bold;
+    color: #00e5ff;
+    text-align: center;
+    width: 100%;
+  }
+
+  .reasoning-box {
+    width: 100%;
+    margin-top: 2;
+    padding: 2;
+    background-color: #18181b;
+    border-radius: 2;
+    border-color: #3f3f46;
+    border-width: 0.12;
+  }
+
+  #reasoning-label {
+    font-size: 2.5;
+    font-weight: bold;
+    color: #71717a;
+    margin-bottom: 0.8;
+  }
+
+  #reasoning-text {
+    font-size: 3.5;
+    color: #fafafa;
+    text-align: left;
+    width: 100%;
+  }
+
+  #elements-text {
+    font-size: 2.8;
+    color: #00e5ff;
+    text-align: left;
+    margin-top: 1.2;
+    width: 100%;
+  }
+
+  #scan-btn {
+    width: 100%;
+    padding: 2;
+    margin-top: 2.5;
+    background-color: #1a1aff;
+    color: #ffffff;
+    border-radius: 2;
+    border-width: 0.1;
+    border-color: #4444ff;
+    font-size: 4;
+    font-weight: medium;
+    text-align: center;
+    cursor: pointer;
+  }
+
+  #status-text {
+    font-size: 2.8;
+    color: #a1a1aa;
+    text-align: center;
+    margin-top: 1.5;
+    width: 100%;
+  }
+
+  #highscore-text {
+    font-size: 2.8;
+    color: #ffd700;
+    text-align: center;
+    margin-top: 0.5;
+    width: 100%;
+  }
+</style>
+<div class="container">
+  <span id="score-text">⚡</span>
+  <div class="reasoning-box">
+    <span id="reasoning-label">WHY</span>
+    <span id="reasoning-text">Scan something to get a score</span>
+  </div>
+  <span id="elements-text"></span>
+  <button id="scan-btn">⚡ Scan</button>
+  <span id="status-text"></span>
+  <span id="highscore-text"></span>
+</div>

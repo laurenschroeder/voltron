@@ -1,5 +1,6 @@
 import { createSystem } from "@iwsdk/core";
-import { analyzeForElectricity } from "./electricityScore.js";
+import { DESCRIPTIVE_ENABLED } from "./config.js";
+import { analyzeForElectricityDescriptive } from "./descriptiveElectricityScore.js";
 
 // ─── Shared scan state (read by HUDSystem) ────────────────────────────────────
 
@@ -23,6 +24,9 @@ let _offscreen: HTMLCanvasElement | null = null;
 let _snapshot: HTMLImageElement | null = null;
 
 // ─── Module-level trigger so HUDSystem can call it without getSystem() ────────
+
+/** Other modules push async fns here to run on every scan. */
+export const scanPlugins: Array<(base64: string, canvas: HTMLCanvasElement) => Promise<void>> = [];
 
 export function triggerScan(): void {
   if (ScanData.state === "scanning") return;
@@ -53,18 +57,33 @@ export function triggerScan(): void {
   }
   ScanData.lastSnapshot = dataUrl;
 
-  analyzeForElectricity(base64)
-    .then((result) => {
-      ScanData.score = result.score;
-      ScanData.reasoning = result.reasoning;
-      ScanData.elements = result.elements;
-      if (result.score > ScanData.highScore) ScanData.highScore = result.score;
-      ScanData.state = "result";
-    })
-    .catch((err: unknown) => {
+  const tasks: Promise<unknown>[] = [];
+
+  if (DESCRIPTIVE_ENABLED) {
+    tasks.push(
+      analyzeForElectricityDescriptive(base64).then((result) => {
+        ScanData.score = result.score;
+        ScanData.reasoning = result.reasoning;
+        ScanData.elements = result.elements;
+        if (result.score > ScanData.highScore) ScanData.highScore = result.score;
+      }),
+    );
+  }
+
+  scanPlugins.forEach((fn) => tasks.push(fn(base64, canvas).catch(console.error)));
+
+  void Promise.allSettled(tasks).then((results) => {
+    const descriptiveFailed =
+      DESCRIPTIVE_ENABLED && results[0]?.status === "rejected";
+    if (descriptiveFailed && scanPlugins.length === 0) {
+      const reason = (results[0] as PromiseRejectedResult).reason as unknown;
+      ScanData.errorMessage =
+        reason instanceof Error ? reason.message : "Analysis failed";
       ScanData.state = "error";
-      ScanData.errorMessage = err instanceof Error ? err.message : "Analysis failed";
-    });
+    } else {
+      ScanData.state = "result";
+    }
+  });
 }
 
 // ─── ScannerSystem ────────────────────────────────────────────────────────────

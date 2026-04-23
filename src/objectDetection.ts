@@ -256,9 +256,9 @@ export function initObjectDetectionOverlay(): void {
   _overlay = document.createElement("div");
   _overlay.style.cssText = [
     "position:fixed",
-    "bottom:148px", // 16px bottom + 120px snapshot + 12px gap
+    "bottom:calc(20px + env(safe-area-inset-bottom, 0px) + 18vw + 8px)",
     "left:16px",
-    "min-width:160px",
+    "right:16px",
     "padding:8px 12px",
     "background:rgba(9,9,11,0.88)",
     "border:2px solid #00e5ff",
@@ -266,7 +266,7 @@ export function initObjectDetectionOverlay(): void {
     "z-index:11",
     "display:none",
     "box-shadow:0 0 12px rgba(0,229,255,0.4)",
-    "font-family:sans-serif",
+    "box-sizing:border-box",
   ].join(";");
 
   const label = document.createElement("span");

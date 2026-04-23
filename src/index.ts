@@ -3,6 +3,7 @@ import { SessionMode, World } from "@iwsdk/core";
 import { GameSystem } from "./game.js";
 import { ScannerSystem } from "./scanner.js";
 import { HUDSystem } from "./hud.js";
+import { OBJECT_DETECTION_ENABLED } from "./config.js";
 
 World.create(
   document.getElementById("scene-container") as HTMLDivElement,
@@ -29,4 +30,11 @@ World.create(
     .registerSystem(GameSystem)    // minimal stub
     .registerSystem(ScannerSystem) // camera capture + Claude analysis
     .registerSystem(HUDSystem);    // scan button + score display
+
+  if (OBJECT_DETECTION_ENABLED) {
+    void import("./objectDetection.js").then(({ loadReferences, initObjectDetectionOverlay }) => {
+      void loadReferences();
+      initObjectDetectionOverlay();
+    });
+  }
 });

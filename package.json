@@ -12,6 +12,8 @@
     "@google/generative-ai": "^0.24.1",
     "@iwsdk/cli": "^0.3.2",
     "@iwsdk/core": "0.3.1",
+    "@tensorflow-models/mobilenet": "^2.1.1",
+    "@tensorflow/tfjs": "^4.22.0",
     "three": "npm:super-three@0.181.0"
   },
   "devDependencies": {

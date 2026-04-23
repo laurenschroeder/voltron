@@ -102,15 +102,15 @@ export class FlowSystem extends createSystem({
           if (textEnt && !textEnt.hasComponent(ScreenSpace)) {
             textEnt.addComponent(ScreenSpace, {
               top: "20px",
-              left: "10%",
-              width: "80%",
+              left: "16px",
+              width: "calc(100vw - 32px)",
             });
           }
           if (startEnt && !startEnt.hasComponent(ScreenSpace)) {
             startEnt.addComponent(ScreenSpace, {
               bottom: screenSpaceBottomStyle(),
-              left: "10%",
-              width: "80%",
+              left: "16px",
+              width: "calc(100vw - 32px)",
             });
           }
         } else {
@@ -184,15 +184,15 @@ export class FlowSystem extends createSystem({
           if (textEnt && !textEnt.hasComponent(ScreenSpace)) {
             textEnt.addComponent(ScreenSpace, {
               top: "20px",
-              left: "10%",
-              width: "80%",
+              left: "16px",
+              width: "calc(100vw - 32px)",
             });
           }
           if (startEnt && !startEnt.hasComponent(ScreenSpace)) {
             startEnt.addComponent(ScreenSpace, {
               bottom: screenSpaceBottomStyle(),
-              left: "10%",
-              width: "80%",
+              left: "16px",
+              width: "calc(100vw - 32px)",
             });
           }
         }

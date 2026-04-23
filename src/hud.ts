@@ -34,8 +34,8 @@ export class HUDSystem extends createSystem({}) {
     panel.style.cssText = [
       "position:fixed",
       "top:20px",
-      "left:10%",
-      "width:80%",
+      "left:16px",
+      "right:16px",
       "padding:3vw",
       "background:#09090b",
       "border:1px solid #27272a",
@@ -144,8 +144,8 @@ export class HUDSystem extends createSystem({}) {
     btn.style.cssText = [
       "position:fixed",
       "bottom:calc(20px + env(safe-area-inset-bottom, 0px))",
-      "left:10%",
-      "width:80%",
+      "left:16px",
+      "right:16px",
       "padding:6vw 3vw",
       "font-size:6vw",
       "font-weight:bold",

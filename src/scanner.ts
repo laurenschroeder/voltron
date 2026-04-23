@@ -113,10 +113,10 @@ export class ScannerSystem extends createSystem({}) {
     _snapshot = document.createElement("img");
     _snapshot.style.cssText = [
       "position:fixed",
-      "bottom:calc(16px + env(safe-area-inset-bottom, 0px))",
+      "bottom:calc(28px + 18vw + env(safe-area-inset-bottom, 0px))",
       "left:calc(16px + env(safe-area-inset-left, 0px))",
-      "width:160px",
-      "height:120px",
+      "width:120px",
+      "height:90px",
       "object-fit:cover",
       "border-radius:8px",
       "border:2px solid #00e5ff",

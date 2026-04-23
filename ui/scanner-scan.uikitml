@@ -21,19 +21,17 @@
     justify-content: center;
   }
 
+  #scan-row {
+    cursor: pointer;
+  }
   #scan-btn {
     font-size: 6;
     font-weight: bold;
     color: #ffffff;
-    background-color: transparent;
-    border-width: 0;
-    padding: 0;
-    text-align: center;
-    cursor: pointer;
   }
 </style>
 <div class="container">
   <div id="scan-row">
-    <button id="scan-btn">Scan</button>
+    <span id="scan-btn">Scan</span>
   </div>
 </div>

@@ -144,7 +144,10 @@ export class FlowSystem extends createSystem({
   }
 
   private setInstructionsPanelsVisible(visible: boolean): void {
-    for (const ent of [this.instructionsTextEntity, this.instructionsStartEntity]) {
+    for (const ent of [
+      this.instructionsTextEntity,
+      this.instructionsStartEntity,
+    ]) {
       if (!ent) continue;
       ent.setValue(Visibility, "isVisible", visible);
       const doc = PanelDocument.data.document[ent.index] as
@@ -169,19 +172,11 @@ export class FlowSystem extends createSystem({
   update(delta: number): void {
     if (FlowState.screen === "splash") {
       this.splashElapsed += delta;
-      if (!this.transitioned && this.splashElapsed >= 6) {
+      if (!this.transitioned && this.splashElapsed >= 5) {
         this.transitioned = true;
         FlowState.screen = "instructions";
 
-        // Remove splash overlay
-        if (this.splashOverlay) {
-          this.splashOverlay.style.display = "none";
-        }
-
-        // Show instructions (text + START)
-        this.setInstructionsPanelsVisible(true);
-
-        // ScreenSpace if already in 2D
+        // Add ScreenSpace first so panels are correctly positioned before becoming visible
         const vs = this.world.visibilityState.peek();
         if (vs === VisibilityState.NonImmersive) {
           const textEnt = this.instructionsTextEntity;
@@ -201,6 +196,14 @@ export class FlowSystem extends createSystem({
             });
           }
         }
+
+        // Make panels visible, then wait two frames for ScreenSpace to reposition
+        // before removing the splash — prevents the flash at raw 3D position
+        this.setInstructionsPanelsVisible(true);
+        const overlay = this.splashOverlay;
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (overlay) overlay.style.display = "none";
+        }));
       }
     } else if (FlowState.screen === "instructions") {
       // Blink the START cursor every 0.5 s

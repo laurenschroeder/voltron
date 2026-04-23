@@ -1,7 +1,7 @@
 <style>
   .container {
     width: 80;
-    padding: 6;
+    padding: 3;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -17,14 +17,14 @@
     font-weight: medium;
     color: #00e5ff;
     text-align: center;
-    margin-bottom: 2;
+    margin-bottom: 1;
     width: 100%;
   }
 
   .reasoning-box {
     width: 100%;
-    margin-top: 1;
-    padding: 2;
+    margin-top: 0.5;
+    padding: 1.5;
     display: flex;
     flex-direction: column;
     align-items: stretch;
@@ -35,42 +35,42 @@
   }
 
   #reasoning-label {
-    font-size: 2.8;
+    font-size: 2.5;
     font-weight: bold;
     color: #71717a;
-    margin-bottom: 0.8;
+    margin-bottom: 0.5;
     text-align: left;
     width: 100%;
   }
 
   #reasoning-text {
-    font-size: 4.5;
+    font-size: 3.5;
     color: #fafafa;
     text-align: left;
     width: 100%;
   }
 
   #elements-text {
-    font-size: 2.8;
+    font-size: 2.5;
     color: #00e5ff;
     text-align: left;
-    margin-top: 1.2;
+    margin-top: 0.8;
     width: 100%;
   }
 
   #status-text {
-    font-size: 2.8;
+    font-size: 2.5;
     color: #a1a1aa;
     text-align: center;
-    margin-top: 1.5;
+    margin-top: 0.8;
     width: 100%;
   }
 
   #highscore-text {
-    font-size: 2.8;
+    font-size: 2.5;
     color: #ffd700;
     text-align: center;
-    margin-top: 0.5;
+    margin-top: 0.3;
     width: 100%;
   }
 </style>

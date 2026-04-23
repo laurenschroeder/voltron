@@ -37,19 +37,30 @@ export function startCamera(): void {
 }
 
 export function triggerScan(): void {
-  if (ScanData.state === "scanning") return;
+  console.log("[scan] triggerScan called, state:", ScanData.state);
+  if (ScanData.state === "scanning") {
+    console.log("[scan] already scanning, ignoring");
+    return;
+  }
 
   const video = _video;
   const canvas = _offscreen;
-  if (!video || !canvas) return;
+  if (!video || !canvas) {
+    console.error("[scan] missing video or canvas", { video, canvas });
+    return;
+  }
+
+  console.log("[scan] video dimensions:", video.videoWidth, "x", video.videoHeight, "readyState:", video.readyState);
 
   if (!video.videoWidth) {
     ScanData.state = "error";
     ScanData.errorMessage = "Camera not ready — allow camera access and try again";
+    console.error("[scan] camera not ready");
     return;
   }
 
   ScanData.state = "scanning";
+  console.log("[scan] capturing frame...");
 
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
@@ -57,6 +68,7 @@ export function triggerScan(): void {
   ctx.drawImage(video, 0, 0);
   const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
   const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+  console.log("[scan] frame captured, base64 length:", base64.length);
 
   // Show the snapshot thumbnail immediately
   if (_snapshot) {
@@ -65,15 +77,19 @@ export function triggerScan(): void {
   }
   ScanData.lastSnapshot = dataUrl;
 
+  console.log("[scan] calling analyzeForElectricity...");
   analyzeForElectricity(base64)
     .then((result) => {
+      console.log("[scan] result:", result);
       ScanData.score = result.score;
       ScanData.reasoning = result.reasoning;
       ScanData.elements = result.elements;
       if (result.score > ScanData.highScore) ScanData.highScore = result.score;
       ScanData.state = "result";
+      console.log("[scan] state set to result");
     })
     .catch((err: unknown) => {
+      console.error("[scan] analyzeForElectricity error:", err);
       ScanData.state = "error";
       ScanData.errorMessage = err instanceof Error ? err.message : "Analysis failed";
     });

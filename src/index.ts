@@ -4,32 +4,39 @@ import { FlowSystem } from "./flow.js";
 import { GameSystem } from "./game.js";
 import { HUDSystem } from "./hud.js";
 import { ScannerSystem } from "./scanner.js";
+import { OBJECT_DETECTION_ENABLED } from "./config.js";
 
-World.create(
-  document.getElementById("scene-container") as HTMLDivElement,
-  {
-    assets: {},
-    render: { defaultLighting: false },
-    xr: {
-      sessionMode: SessionMode.ImmersiveVR,
-      offer: "always",
-      features: { handTracking: true, layers: true },
-    },
-    features: {
-      locomotion: false,
-      grabbing: false,
-      physics: false,
-      sceneUnderstanding: false,
-      environmentRaycast: false,
-    },
+World.create(document.getElementById("scene-container") as HTMLDivElement, {
+  assets: {},
+  render: { defaultLighting: false },
+  xr: {
+    sessionMode: SessionMode.ImmersiveVR,
+    offer: "always",
+    features: { handTracking: true, layers: true },
   },
-).then((world) => {
+  features: {
+    locomotion: false,
+    grabbing: false,
+    physics: false,
+    sceneUnderstanding: false,
+    environmentRaycast: false,
+  },
+}).then((world) => {
   world.camera.position.set(0, 1.5, 0);
   world.camera.lookAt(0, 1.5, -5);
 
   world
-    .registerSystem(GameSystem)    // minimal stub
+    .registerSystem(GameSystem) // minimal stub
     .registerSystem(ScannerSystem) // camera capture + Gemini analysis
-    .registerSystem(FlowSystem)    // splash → instructions → game flow
-    .registerSystem(HUDSystem);    // scan button + score display
+    .registerSystem(FlowSystem) // splash → instructions → game flow
+    .registerSystem(HUDSystem); // scan button + score display
+
+  if (OBJECT_DETECTION_ENABLED) {
+    void import("./objectDetection.js").then(
+      ({ loadReferences, initObjectDetectionOverlay }) => {
+        void loadReferences();
+        initObjectDetectionOverlay();
+      },
+    );
+  }
 });

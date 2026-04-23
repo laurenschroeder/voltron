@@ -1,0 +1,61 @@
+<style>
+  .container {
+    width: 80;
+    padding: 6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: #09090b;
+    border-color: #27272a;
+    border-width: 0.15;
+    border-radius: 3;
+    opacity: 0.95;
+  }
+
+  #score-text {
+    font-size: 5.5;
+    font-weight: medium;
+    color: #00e5ff;
+    text-align: center;
+    margin-bottom: 2;
+    width: 100%;
+  }
+
+  #reasoning-text {
+    font-size: 4.5;
+    color: #fafafa;
+    text-align: center;
+    width: 100%;
+  }
+
+  #elements-text {
+    font-size: 2.8;
+    color: #00e5ff;
+    text-align: center;
+    margin-top: 1.2;
+    width: 100%;
+  }
+
+  #status-text {
+    font-size: 2.8;
+    color: #a1a1aa;
+    text-align: center;
+    margin-top: 1.5;
+    width: 100%;
+  }
+
+  #highscore-text {
+    font-size: 2.8;
+    color: #ffd700;
+    text-align: center;
+    margin-top: 0.5;
+    width: 100%;
+  }
+</style>
+<div class="container">
+  <span id="score-text">--</span>
+  <span id="reasoning-text">Scan something to get a score</span>
+  <span id="elements-text"></span>
+  <span id="status-text"></span>
+  <span id="highscore-text"></span>
+</div>

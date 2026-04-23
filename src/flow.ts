@@ -11,6 +11,7 @@ import {
   VisibilityState,
   eq,
 } from "@iwsdk/core";
+import { screenSpaceBottomStyle } from "./safeArea.js";
 import { startCamera } from "./scanner.js";
 
 // ─── App screen state (read by HUDSystem) ─────────────────────────────────────
@@ -24,13 +25,18 @@ export const FlowState = {
 // ─── FlowSystem ───────────────────────────────────────────────────────────────
 
 export class FlowSystem extends createSystem({
-  instructionsPanel: {
+  instructionsTextPanel: {
     required: [PanelUI, PanelDocument],
-    where: [eq(PanelUI, "config", "./ui/instructions.json")],
+    where: [eq(PanelUI, "config", "./ui/instructions-text.json")],
+  },
+  instructionsStartPanel: {
+    required: [PanelUI, PanelDocument],
+    where: [eq(PanelUI, "config", "./ui/instructions-start.json")],
   },
 }) {
   private splashOverlay: HTMLDivElement | null = null;
-  private instructionsEntity: Entity | null = null;
+  private instructionsTextEntity: Entity | null = null;
+  private instructionsStartEntity: Entity | null = null;
   private startRowEl: UIKit.Text | null = null;
   private cursorEl: UIKit.Text | null = null;
 
@@ -63,38 +69,62 @@ export class FlowSystem extends createSystem({
     document.body.appendChild(overlay);
     this.splashOverlay = overlay;
 
-    // ── Instructions panel (hidden until splash times out) ────────────────
-    this.instructionsEntity = this.world.createTransformEntity();
-    this.instructionsEntity
+    // ── Instructions: copy (top) and START (bottom) — separate panels ─────
+    this.instructionsTextEntity = this.world.createTransformEntity();
+    this.instructionsTextEntity
       .addComponent(PanelUI, {
-        config: "./ui/instructions.json",
+        config: "./ui/instructions-text.json",
         maxWidth: 1.8,
         maxHeight: 0.9,
       })
       .addComponent(Interactable)
       .addComponent(Visibility, { isVisible: false });
-    this.instructionsEntity.object3D!.position.set(0, 1.6, -1.5);
+    this.instructionsTextEntity.object3D!.position.set(0, 1.65, -1.5);
 
-    // ScreenSpace for instructions in 2D mode
-    const instructions = this.instructionsEntity;
+    this.instructionsStartEntity = this.world.createTransformEntity();
+    this.instructionsStartEntity
+      .addComponent(PanelUI, {
+        config: "./ui/instructions-start.json",
+        maxWidth: 1.8,
+        maxHeight: 0.35,
+      })
+      .addComponent(Interactable)
+      .addComponent(Visibility, { isVisible: false });
+    this.instructionsStartEntity.object3D!.position.set(0, 1.12, -1.5);
+
+    const textEnt = this.instructionsTextEntity;
+    const startEnt = this.instructionsStartEntity;
     this.cleanupFuncs.push(
       this.world.visibilityState.subscribe((vs) => {
         if (FlowState.screen !== "instructions") return;
         const is2D = vs === VisibilityState.NonImmersive;
-        if (is2D && !instructions.hasComponent(ScreenSpace)) {
-          instructions.addComponent(ScreenSpace, {
-            bottom: "20px",
-            left: "10%",
-            width: "80%",
-          });
-        } else if (!is2D && instructions.hasComponent(ScreenSpace)) {
-          instructions.removeComponent(ScreenSpace);
+        if (is2D) {
+          if (textEnt && !textEnt.hasComponent(ScreenSpace)) {
+            textEnt.addComponent(ScreenSpace, {
+              top: "20px",
+              left: "10%",
+              width: "80%",
+            });
+          }
+          if (startEnt && !startEnt.hasComponent(ScreenSpace)) {
+            startEnt.addComponent(ScreenSpace, {
+              bottom: screenSpaceBottomStyle(),
+              left: "10%",
+              width: "80%",
+            });
+          }
+        } else {
+          textEnt?.removeComponent(ScreenSpace);
+          startEnt?.removeComponent(ScreenSpace);
         }
       }),
     );
 
-    // Wire START button once instructions panel document is ready
-    this.queries.instructionsPanel.subscribe("qualify", (entity) => {
+    this.queries.instructionsTextPanel.subscribe("qualify", () => {
+      this.syncInstructionsDocumentsVisible();
+    });
+
+    this.queries.instructionsStartPanel.subscribe("qualify", (entity) => {
       const doc = PanelDocument.data.document[entity.index] as
         | UIKitDocument
         | undefined;
@@ -104,27 +134,32 @@ export class FlowSystem extends createSystem({
       if (this.startRowEl) {
         this.startRowEl.addEventListener("click", () => this.startGame());
       }
-
-      this.setInstructionsPanelVisible(FlowState.screen === "instructions");
+      this.syncInstructionsDocumentsVisible();
     });
   }
 
-  private setInstructionsPanelVisible(visible: boolean): void {
-    const ent = this.instructionsEntity;
-    if (!ent) return;
-    ent.setValue(Visibility, "isVisible", visible);
-    const doc = PanelDocument.data.document[ent.index] as
-      | UIKitDocument
-      | undefined;
-    if (doc) doc.visible = visible;
-    if (!visible && ent.hasComponent(ScreenSpace)) {
-      ent.removeComponent(ScreenSpace);
+  private syncInstructionsDocumentsVisible(): void {
+    const show = FlowState.screen === "instructions";
+    this.setInstructionsPanelsVisible(show);
+  }
+
+  private setInstructionsPanelsVisible(visible: boolean): void {
+    for (const ent of [this.instructionsTextEntity, this.instructionsStartEntity]) {
+      if (!ent) continue;
+      ent.setValue(Visibility, "isVisible", visible);
+      const doc = PanelDocument.data.document[ent.index] as
+        | UIKitDocument
+        | undefined;
+      if (doc) doc.visible = visible;
+      if (!visible && ent.hasComponent(ScreenSpace)) {
+        ent.removeComponent(ScreenSpace);
+      }
     }
   }
 
   private startGame(): void {
     FlowState.screen = "game";
-    this.setInstructionsPanelVisible(false);
+    this.setInstructionsPanelsVisible(false);
     // Restore transparent canvas so camera feed shows through
     this.world.renderer.setClearColor(0x000000, 0);
     this.world.renderer.setClearAlpha(0);
@@ -143,25 +178,32 @@ export class FlowSystem extends createSystem({
           this.splashOverlay.style.display = "none";
         }
 
-        // Show instructions panel
-        this.setInstructionsPanelVisible(true);
+        // Show instructions (text + START)
+        this.setInstructionsPanelsVisible(true);
 
-        // Add ScreenSpace if already in 2D mode
+        // ScreenSpace if already in 2D
         const vs = this.world.visibilityState.peek();
-        if (
-          vs === VisibilityState.NonImmersive &&
-          this.instructionsEntity &&
-          !this.instructionsEntity.hasComponent(ScreenSpace)
-        ) {
-          this.instructionsEntity.addComponent(ScreenSpace, {
-            top: "20px",
-            left: "10%",
-            width: "80%",
-          });
+        if (vs === VisibilityState.NonImmersive) {
+          const textEnt = this.instructionsTextEntity;
+          const startEnt = this.instructionsStartEntity;
+          if (textEnt && !textEnt.hasComponent(ScreenSpace)) {
+            textEnt.addComponent(ScreenSpace, {
+              top: "20px",
+              left: "10%",
+              width: "80%",
+            });
+          }
+          if (startEnt && !startEnt.hasComponent(ScreenSpace)) {
+            startEnt.addComponent(ScreenSpace, {
+              bottom: screenSpaceBottomStyle(),
+              left: "10%",
+              width: "80%",
+            });
+          }
         }
       }
     } else if (FlowState.screen === "instructions") {
-      // Blink the START button every 0.5 s
+      // Blink the START cursor every 0.5 s
       this.blinkTimer += delta;
       if (this.blinkTimer >= 0.5) {
         this.blinkTimer = 0;

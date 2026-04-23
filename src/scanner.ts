@@ -23,25 +23,48 @@ let _video: HTMLVideoElement | null = null;
 let _offscreen: HTMLCanvasElement | null = null;
 let _snapshot: HTMLImageElement | null = null;
 
-// ─── Module-level trigger so HUDSystem can call it without getSystem() ────────
+// ─── Module-level functions called by FlowSystem / HUDSystem ─────────────────
+
+export function startCamera(): void {
+  navigator.mediaDevices
+    .getUserMedia({ video: { facingMode: { ideal: "environment" } } })
+    .catch(() => navigator.mediaDevices.getUserMedia({ video: true }))
+    .then((stream) => { _video!.srcObject = stream; })
+    .catch((err: unknown) => {
+      ScanData.state = "error";
+      ScanData.errorMessage =
+        err instanceof Error ? err.message : "Camera access denied";
+    });
+}
 
 /** Other modules push async fns here to run on every scan. */
 export const scanPlugins: Array<(base64: string, canvas: HTMLCanvasElement) => Promise<void>> = [];
 
 export function triggerScan(): void {
-  if (ScanData.state === "scanning") return;
+  console.log("[scan] triggerScan called, state:", ScanData.state);
+  if (ScanData.state === "scanning") {
+    console.log("[scan] already scanning, ignoring");
+    return;
+  }
 
   const video = _video;
   const canvas = _offscreen;
-  if (!video || !canvas) return;
+  if (!video || !canvas) {
+    console.error("[scan] missing video or canvas", { video, canvas });
+    return;
+  }
+
+  console.log("[scan] video dimensions:", video.videoWidth, "x", video.videoHeight, "readyState:", video.readyState);
 
   if (!video.videoWidth) {
     ScanData.state = "error";
     ScanData.errorMessage = "Camera not ready — allow camera access and try again";
+    console.error("[scan] camera not ready");
     return;
   }
 
   ScanData.state = "scanning";
+  console.log("[scan] capturing frame...");
 
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
@@ -49,6 +72,7 @@ export function triggerScan(): void {
   ctx.drawImage(video, 0, 0);
   const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
   const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+  console.log("[scan] frame captured, base64 length:", base64.length);
 
   // Show the snapshot thumbnail immediately
   if (_snapshot) {
@@ -57,11 +81,13 @@ export function triggerScan(): void {
   }
   ScanData.lastSnapshot = dataUrl;
 
+  console.log("[scan] calling analyzeForElectricityDescriptive...");
   const tasks: Promise<unknown>[] = [];
 
   if (DESCRIPTIVE_ENABLED) {
     tasks.push(
       analyzeForElectricityDescriptive(base64).then((result) => {
+        console.log("[scan] result:", result);
         ScanData.score = result.score;
         ScanData.reasoning = result.reasoning;
         ScanData.elements = result.elements;
@@ -80,8 +106,10 @@ export function triggerScan(): void {
       ScanData.errorMessage =
         reason instanceof Error ? reason.message : "Analysis failed";
       ScanData.state = "error";
+      console.error("[scan] analyzeForElectricityDescriptive error:", reason);
     } else {
       ScanData.state = "result";
+      console.log("[scan] state set to result");
     }
   });
 }
@@ -104,10 +132,10 @@ export class ScannerSystem extends createSystem({}) {
     _snapshot = document.createElement("img");
     _snapshot.style.cssText = [
       "position:fixed",
-      "bottom:16px",
-      "left:16px",
-      "width:160px",
-      "height:120px",
+      "bottom:calc(20px + env(safe-area-inset-bottom, 0px) + 18vw + 8px + 64px + 8px)",
+      "left:calc(16px + env(safe-area-inset-left, 0px))",
+      "width:120px",
+      "height:90px",
       "object-fit:cover",
       "border-radius:8px",
       "border:2px solid #00e5ff",
@@ -118,17 +146,6 @@ export class ScannerSystem extends createSystem({}) {
     document.body.appendChild(_snapshot);
 
     _offscreen = document.createElement("canvas");
-
-    // ── Camera stream ────────────────────────────────────────────────────
-    navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: { ideal: "environment" } } })
-      .catch(() => navigator.mediaDevices.getUserMedia({ video: true }))
-      .then((stream) => { _video!.srcObject = stream; })
-      .catch((err: unknown) => {
-        ScanData.state = "error";
-        ScanData.errorMessage =
-          err instanceof Error ? err.message : "Camera access denied";
-      });
 
     // ── Make the Three.js canvas transparent ────────────────────────────
     // IWSDK sets up the renderer before systems init, so we patch it here.

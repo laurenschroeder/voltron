@@ -21,17 +21,39 @@
     width: 100%;
   }
 
+  .reasoning-box {
+    width: 100%;
+    margin-top: 1;
+    padding: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    background-color: #18181b;
+    border-radius: 2;
+    border-color: #3f3f46;
+    border-width: 0.12;
+  }
+
+  #reasoning-label {
+    font-size: 2.8;
+    font-weight: bold;
+    color: #71717a;
+    margin-bottom: 0.8;
+    text-align: left;
+    width: 100%;
+  }
+
   #reasoning-text {
     font-size: 4.5;
     color: #fafafa;
-    text-align: center;
+    text-align: left;
     width: 100%;
   }
 
   #elements-text {
     font-size: 2.8;
     color: #00e5ff;
-    text-align: center;
+    text-align: left;
     margin-top: 1.2;
     width: 100%;
   }
@@ -54,7 +76,10 @@
 </style>
 <div class="container">
   <span id="score-text">--</span>
-  <span id="reasoning-text">Scan something to get a score</span>
+  <div class="reasoning-box">
+    <span id="reasoning-label">WHY</span>
+    <span id="reasoning-text">Scan something to get a score</span>
+  </div>
   <span id="elements-text"></span>
   <span id="status-text"></span>
   <span id="highscore-text"></span>

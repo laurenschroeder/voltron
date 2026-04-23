@@ -32,6 +32,7 @@ export class HUDSystem extends createSystem({
   private hudVisible = false;
 
   private scoreEl: UIKit.Text | null = null;
+  private reasoningLabelEl: UIKit.Text | null = null;
   private reasoningEl: UIKit.Text | null = null;
   private elementsEl: UIKit.Text | null = null;
   private scanBtn: UIKit.Text | null = null;
@@ -141,6 +142,7 @@ export class HUDSystem extends createSystem({
       | undefined;
     if (!doc) return;
     this.scoreEl = doc.getElementById("score-text") as UIKit.Text;
+    this.reasoningLabelEl = doc.getElementById("reasoning-label") as UIKit.Text;
     this.reasoningEl = doc.getElementById("reasoning-text") as UIKit.Text;
     this.elementsEl = doc.getElementById("elements-text") as UIKit.Text;
     this.statusEl = doc.getElementById("status-text") as UIKit.Text;
@@ -182,6 +184,7 @@ export class HUDSystem extends createSystem({
     switch (state) {
       case "idle":
         this.scoreEl?.setProperties({ text: "--", color: "#00e5ff" });
+        this.reasoningLabelEl?.setProperties({ text: "WHY", opacity: 0 });
         this.reasoningEl?.setProperties({
           text: "Scan something to get a score",
           color: "#fafafa",
@@ -192,6 +195,7 @@ export class HUDSystem extends createSystem({
         break;
 
       case "scanning":
+        this.reasoningLabelEl?.setProperties({ text: "WHY", opacity: 0 });
         this.reasoningEl?.setProperties({ text: "Analysing…" });
         this.scanBtn?.setProperties({ text: "Scanning…", opacity: 0.5 });
         this.statusEl?.setProperties({ text: "" });
@@ -202,6 +206,11 @@ export class HUDSystem extends createSystem({
         const color =
           score >= 70 ? "#00e5ff" : score >= 40 ? "#ffd700" : "#a1a1aa";
         this.scoreEl?.setProperties({ text: `${score} / 100`, color });
+        this.reasoningLabelEl?.setProperties({
+          text: "WHY",
+          color: "#71717a",
+          opacity: 1,
+        });
         this.reasoningEl?.setProperties({ text: ScanData.reasoning, color: "#fafafa" });
         this.elementsEl?.setProperties({
           text: ScanData.elements.length
@@ -218,6 +227,11 @@ export class HUDSystem extends createSystem({
 
       case "error":
         this.scoreEl?.setProperties({ text: "!", color: "#fafafa" });
+        this.reasoningLabelEl?.setProperties({
+          text: "WHY",
+          color: "#71717a",
+          opacity: 1,
+        });
         this.reasoningEl?.setProperties({
           text: ScanData.errorMessage,
           color: "#fafafa",

@@ -1,0 +1,23 @@
+<style>
+  .container {
+    width: 90;
+    height: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #09090b;
+    border-radius: 3;
+    opacity: 0.97;
+  }
+  #logo {
+    width: 75%;
+    height: 85%;
+    background-image: url('/voltron.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center center;
+  }
+</style>
+<div class="container">
+  <div id="logo"></div>
+</div>

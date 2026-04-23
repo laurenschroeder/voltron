@@ -1,14 +1,17 @@
 import {
-  createSystem,
-  PanelUI,
-  PanelDocument,
-  ScreenSpace,
+  Entity,
   Interactable,
-  UIKitDocument,
+  PanelDocument,
+  PanelUI,
+  ScreenSpace,
   UIKit,
-  eq,
+  UIKitDocument,
+  Visibility,
   VisibilityState,
+  createSystem,
+  eq,
 } from "@iwsdk/core";
+import { FlowState } from "./flow.js";
 import { ScanData, triggerScan } from "./scanner.js";
 
 // ─── HUDSystem ────────────────────────────────────────────────────────────────
@@ -19,6 +22,9 @@ export class HUDSystem extends createSystem({
     where: [eq(PanelUI, "config", "./ui/scanner.json")],
   },
 }) {
+  private panelEntity: Entity | null = null;
+  private hudVisible = false;
+
   private scoreEl: UIKit.Text | null = null;
   private reasoningLabelEl: UIKit.Text | null = null;
   private reasoningEl: UIKit.Text | null = null;
@@ -30,27 +36,29 @@ export class HUDSystem extends createSystem({
   private prevState = ScanData.state;
 
   init(): void {
-
-    // ── HUD panel ─────────────────────────────────────────────────────────
-    const panelEntity = this.world
-      .createTransformEntity()
+    // Panel starts hidden — shown by update() when FlowState.screen === "game"
+    this.panelEntity = this.world.createTransformEntity();
+    this.panelEntity
       .addComponent(PanelUI, {
         config: "./ui/scanner.json",
         maxHeight: 0.9,
         maxWidth: 1.8,
       })
-      .addComponent(Interactable);
+      .addComponent(Interactable)
+      .addComponent(Visibility, { isVisible: false });
 
-    panelEntity.object3D!.position.set(0, 1.75, -1.4);
+    this.panelEntity.object3D!.position.set(0, 1.75, -1.4);
 
+    const panelEntity = this.panelEntity;
     this.cleanupFuncs.push(
       this.world.visibilityState.subscribe((vs) => {
+        if (!this.hudVisible) return;
         if (vs === VisibilityState.NonImmersive) {
           if (!panelEntity.hasComponent(ScreenSpace)) {
             panelEntity.addComponent(ScreenSpace, {
-              top: "20px",
-              right: "20px",
-              height: "65%",
+              bottom: "20px",
+              left: "10%",
+              width: "80%",
             });
           }
         } else {
@@ -61,7 +69,7 @@ export class HUDSystem extends createSystem({
       }),
     );
 
-    // ── Wire up UI elements once panel doc is ready ───────────────────────
+    // Wire UI elements once panel document loads
     this.queries.hud.subscribe("qualify", (entity) => {
       const doc = PanelDocument.data.document[entity.index] as
         | UIKitDocument
@@ -77,27 +85,43 @@ export class HUDSystem extends createSystem({
       this.highscoreEl = doc.getElementById("highscore-text") as UIKit.Text;
 
       if (this.scanBtn) {
-        this.scanBtn.addEventListener("click", () => this.doScan());
+        this.scanBtn.addEventListener("click", () => triggerScan());
       }
     });
   }
 
-  private doScan(): void {
-    triggerScan();
-  }
-
   update(): void {
+    // Reveal panel the first frame the game screen is active
+    if (!this.hudVisible && FlowState.screen === "game") {
+      this.hudVisible = true;
+      this.panelEntity?.setValue(Visibility, "isVisible", true);
+      const vs = this.world.visibilityState.peek();
+      if (
+        vs === VisibilityState.NonImmersive &&
+        this.panelEntity &&
+        !this.panelEntity.hasComponent(ScreenSpace)
+      ) {
+        this.panelEntity.addComponent(ScreenSpace, {
+          top: "20px",
+          right: "20px",
+          height: "65%",
+        });
+      }
+    }
+
+    if (!this.hudVisible) return;
+
     const state = ScanData.state;
     if (state === this.prevState) return;
     this.prevState = state;
 
     switch (state) {
       case "idle":
-        this.scoreEl?.setProperties({ text: "⚡" });
+        this.scoreEl?.setProperties({ text: "--" });
         this.reasoningLabelEl?.setProperties({ text: "" });
         this.reasoningEl?.setProperties({ text: "Scan something to get a score" });
         this.elementsEl?.setProperties({ text: "" });
-        this.scanBtn?.setProperties({ text: "⚡ Scan", opacity: 1 });
+        this.scanBtn?.setProperties({ text: "Scan", opacity: 1 });
         this.statusEl?.setProperties({ text: "" });
         break;
 
@@ -110,14 +134,17 @@ export class HUDSystem extends createSystem({
 
       case "result": {
         const score = ScanData.score;
-        const color = score >= 70 ? "#00e5ff" : score >= 40 ? "#ffd700" : "#a1a1aa";
+        const color =
+          score >= 70 ? "#00e5ff" : score >= 40 ? "#ffd700" : "#a1a1aa";
         this.scoreEl?.setProperties({ text: `${score} / 100`, color });
         this.reasoningLabelEl?.setProperties({ text: "WHY" });
         this.reasoningEl?.setProperties({ text: ScanData.reasoning });
         this.elementsEl?.setProperties({
-          text: ScanData.elements.length ? ScanData.elements.join(" · ") : "",
+          text: ScanData.elements.length
+            ? ScanData.elements.join(" · ")
+            : "",
         });
-        this.scanBtn?.setProperties({ text: "⚡ Scan Again", opacity: 1 });
+        this.scanBtn?.setProperties({ text: "Scan Again", opacity: 1 });
         this.statusEl?.setProperties({ text: "" });
         this.highscoreEl?.setProperties({
           text: ScanData.highScore > 0 ? `Best: ${ScanData.highScore}` : "",
@@ -129,7 +156,7 @@ export class HUDSystem extends createSystem({
         this.scoreEl?.setProperties({ text: "!" });
         this.reasoningLabelEl?.setProperties({ text: "ERROR" });
         this.reasoningEl?.setProperties({ text: ScanData.errorMessage });
-        this.scanBtn?.setProperties({ text: "⚡ Try Again", opacity: 1 });
+        this.scanBtn?.setProperties({ text: "Try Again", opacity: 1 });
         this.statusEl?.setProperties({ text: "" });
         break;
     }

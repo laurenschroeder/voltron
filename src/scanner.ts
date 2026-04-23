@@ -22,7 +22,19 @@ let _video: HTMLVideoElement | null = null;
 let _offscreen: HTMLCanvasElement | null = null;
 let _snapshot: HTMLImageElement | null = null;
 
-// ─── Module-level trigger so HUDSystem can call it without getSystem() ────────
+// ─── Module-level functions called by FlowSystem / HUDSystem ─────────────────
+
+export function startCamera(): void {
+  navigator.mediaDevices
+    .getUserMedia({ video: { facingMode: { ideal: "environment" } } })
+    .catch(() => navigator.mediaDevices.getUserMedia({ video: true }))
+    .then((stream) => { _video!.srcObject = stream; })
+    .catch((err: unknown) => {
+      ScanData.state = "error";
+      ScanData.errorMessage =
+        err instanceof Error ? err.message : "Camera access denied";
+    });
+}
 
 export function triggerScan(): void {
   if (ScanData.state === "scanning") return;
@@ -99,17 +111,6 @@ export class ScannerSystem extends createSystem({}) {
     document.body.appendChild(_snapshot);
 
     _offscreen = document.createElement("canvas");
-
-    // ── Camera stream ────────────────────────────────────────────────────
-    navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: { ideal: "environment" } } })
-      .catch(() => navigator.mediaDevices.getUserMedia({ video: true }))
-      .then((stream) => { _video!.srcObject = stream; })
-      .catch((err: unknown) => {
-        ScanData.state = "error";
-        ScanData.errorMessage =
-          err instanceof Error ? err.message : "Camera access denied";
-      });
 
     // ── Make the Three.js canvas transparent ────────────────────────────
     // IWSDK sets up the renderer before systems init, so we patch it here.

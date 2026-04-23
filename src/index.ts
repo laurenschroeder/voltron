@@ -1,13 +1,15 @@
 import { SessionMode, World } from "@iwsdk/core";
 
+import { FlowSystem } from "./flow.js";
 import { GameSystem } from "./game.js";
-import { ScannerSystem } from "./scanner.js";
 import { HUDSystem } from "./hud.js";
+import { ScannerSystem } from "./scanner.js";
 
 World.create(
   document.getElementById("scene-container") as HTMLDivElement,
   {
     assets: {},
+    render: { defaultLighting: false },
     xr: {
       sessionMode: SessionMode.ImmersiveVR,
       offer: "always",
@@ -27,6 +29,7 @@ World.create(
 
   world
     .registerSystem(GameSystem)    // minimal stub
-    .registerSystem(ScannerSystem) // camera capture + Claude analysis
+    .registerSystem(ScannerSystem) // camera capture + Gemini analysis
+    .registerSystem(FlowSystem)    // splash → instructions → game flow
     .registerSystem(HUDSystem);    // scan button + score display
 });

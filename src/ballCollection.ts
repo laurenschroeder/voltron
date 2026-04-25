@@ -7,6 +7,8 @@ import {
   MeshStandardMaterial,
   Color,
   Vector3,
+  Interactable,
+  Pressed,
 } from "@iwsdk/core";
 
 
@@ -30,12 +32,22 @@ export const Ball = createComponent("Ball", {
   collected: { type: Types.Boolean, default: false },
 });
 
+// ─── Score state ─────────────────────────────────────────────────────────────
+// Total score, lives module-level so other modules (HUD, etc.) can read it.
+
+export const BallScore = {
+  total: 0,
+};
+
 // ─── BallCollectionSystem ────────────────────────────────────────────────────
 // Listens for "scan-succeeded" events and (later) spawns balls + handles
 // collection logic. For now, just logs that it heard the event so we can
 // verify wiring works before adding 3D logic.
 
-export class BallCollectionSystem extends createSystem({}) {
+export class BallCollectionSystem extends createSystem({
+  balls: { required: [Ball] },
+  pressedBalls: { required: [Ball, Pressed] },
+}) {
   init(): void {
     console.log("[BallCollectionSystem] init — listening for scan-succeeded");
 
@@ -44,6 +56,10 @@ export class BallCollectionSystem extends createSystem({}) {
       this.spawnBall();
     });
   }
+
+// TODO: object pool: create n balls at init, activate/deactivate
+// instead of create/dispose. 
+// "one scan, one ball." Pool gives better perf + supports rarity tiers cleanly.
 
   private spawnBall(): void {
     // 1. Build the 3D mesh: a glowing cyan sphere
@@ -71,13 +87,30 @@ export class BallCollectionSystem extends createSystem({}) {
 
     // 3. Attach the Ball component so we can identify and update it later
     entity.addComponent(Ball, { value: 1, collected: false });
+    entity.addComponent(Interactable);
 
     console.log(`[BallCollectionSystem] ball spawned at (${spawnPos.x.toFixed(2)}, ${spawnPos.y.toFixed(2)}, ${spawnPos.z.toFixed(2)})`);
   }
 
   update(): void {
-    // Frame logic will go here later (distance check, collection)
+  for (const entity of this.queries.pressedBalls.entities) {
+    // Skip already-collected balls (just in case)
+    const collected = entity.getValue(Ball, "collected");
+    if (collected) continue;
+
+    // Collect it!
+    const value = entity.getValue(Ball, "value") as number;
+    BallScore.total += value;
+
+    console.log(
+      `[BallCollectionSystem] ball collected! +${value} pts (total: ${BallScore.total})`
+    );
+
+    // Mark as collected and remove from world
+    entity.setValue(Ball, "collected", true);
+    entity.dispose();
   }
+}
 }
 
 // ─── DEBUG: Fake scan trigger ────────────────────────────────────────────────

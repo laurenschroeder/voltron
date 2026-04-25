@@ -3,8 +3,10 @@ import {
   createComponent,
   Types,
   Mesh,
+  Group,
   SphereGeometry,
   MeshStandardMaterial,
+  MeshBasicMaterial,
   Color,
   Vector3,
   Interactable,
@@ -30,6 +32,8 @@ export const ballEventBus = new EventTarget();
 export const Ball = createComponent("Ball", {
   value: { type: Types.Float32, default: 1 },
   collected: { type: Types.Boolean, default: false },
+  age: { type: Types.Float32, default: 0 }, //lifetime
+  collectAge: { type: Types.Float32, default: 0 }, //how long since ball collected
 });
 
 // ─── Score state ─────────────────────────────────────────────────────────────
@@ -62,43 +66,128 @@ export class BallCollectionSystem extends createSystem({
 // "one scan, one ball." Pool gives better perf + supports rarity tiers cleanly.
 
   private spawnBall(): void {
-    // 1. Build the 3D mesh: a glowing cyan sphere
-    const geometry = new SphereGeometry(0.1, 32, 32);  // radius 0.1m (10cm)
-    const material = new MeshStandardMaterial({
-      color: new Color(0x00e5ff),       // cyan
-      emissive: new Color(0x00e5ff),    // glowing
-      emissiveIntensity: 0.6,
-      metalness: 0.3,
-      roughness: 0.4,
-    });
-    const mesh = new Mesh(geometry, material);
+  // 1. Build a group containing CORE (solid sphere) + HALO (translucent outer)
+  const group = new Group();
 
-    // 2. Wrap it in an ECS entity at a fixed test position
-    const entity = this.world.createTransformEntity(mesh);
-    //entity.object3D!.position.set(0, 1.5, -1.5);  // 1.5m forward, eye level
-    // Position the ball 1.5m in front of wherever the camera is looking
-    const camera = this.world.camera;
-    const forward = new Vector3();
-    camera.getWorldDirection(forward);   // unit vector pointing where camera looks
-    const spawnPos = camera.position.clone().add(forward.multiplyScalar(3));
-    entity.object3D!.position.copy(spawnPos);
-    
+  // Core sphere — violet/purple, glowing, the "click target"
+  const coreGeometry = new SphereGeometry(0.1, 32, 32);
+  const coreMaterial = new MeshStandardMaterial({
+    color: new Color(0x8a2be2),         // blue-violet
+    emissive: new Color(0xb966ff),      // brighter violet glow
+    emissiveIntensity: 0.6,
+    metalness: 0.4,
+    roughness: 0.3,
+    transparent: true,
+    opacity: 1,
+  });
+  const core = new Mesh(coreGeometry, coreMaterial);
+  group.add(core);
 
+  // Halo — larger, translucent cyan, no lighting (always glowing)
+  const haloGeometry = new SphereGeometry(0.18, 24, 24);
+  const haloMaterial = new MeshBasicMaterial({
+    color: new Color(0x00e5ff),         // cyan
+    transparent: true,
+    opacity: 0.25,
+    depthWrite: false,                  // halo doesn't block what's behind it
+  });
+  const halo = new Mesh(haloGeometry, haloMaterial);
+  group.add(halo);
 
-    // 3. Attach the Ball component so we can identify and update it later
-    entity.addComponent(Ball, { value: 1, collected: false });
-    entity.addComponent(Interactable);
+  // 2. Wrap the group in an ECS entity, position 3m in front of camera
+  const entity = this.world.createTransformEntity(group);
+  const camera = this.world.camera;
+  const forward = new Vector3();
+  camera.getWorldDirection(forward);
+  const spawnPos = camera.position.clone().add(forward.multiplyScalar(3));
+  entity.object3D!.position.copy(spawnPos);
+  entity.object3D!.scale.setScalar(0); // start invisible, will grow in
 
-    console.log(`[BallCollectionSystem] ball spawned at (${spawnPos.x.toFixed(2)}, ${spawnPos.y.toFixed(2)}, ${spawnPos.z.toFixed(2)})`);
+  // 3. Attach Ball component (data) and Interactable (so it can be clicked/tapped)
+  entity.addComponent(Ball, { value: 1, collected: false });
+  entity.addComponent(Interactable);
+
+  console.log(
+    `[BallCollectionSystem] ball spawned at (${spawnPos.x.toFixed(2)}, ${spawnPos.y.toFixed(2)}, ${spawnPos.z.toFixed(2)})`
+  );
+}
+
+  
+
+//update start
+
+update(delta: number): void {
+  const SPAWN_DURATION = 0.3;
+  const COLLECT_DURATION = 0.3;
+
+  for (const entity of this.queries.balls.entities) {
+    const collected = entity.getValue(Ball, "collected");
+    const group = entity.object3D as Group;
+
+    if (!collected) {
+      // ── Spawn-in animation (scale 0 → 1) ──────────────────────────
+      const age = (entity.getValue(Ball, "age") as number) + delta;
+      entity.setValue(Ball, "age", age);
+
+      if (age < SPAWN_DURATION) {
+        const t = age / SPAWN_DURATION;
+        const eased = 1 - (1 - t) * (1 - t);
+        group.scale.setScalar(eased);
+      } else {
+        group.scale.setScalar(1);
+      }
+
+      // ── Slow rotation (always, for life) ──────────────────────────
+      group.rotation.y += delta * 0.5;  // half radian per second
+
+      // ── Pulse on core + halo (independent rates for shimmer) ──────
+      if (age > SPAWN_DURATION) {
+        const core = group.children[0] as Mesh;
+        const halo = group.children[1] as Mesh;
+        const coreMat = core.material as MeshStandardMaterial;
+        const haloMat = halo.material as MeshBasicMaterial;
+
+        // Core pulses 0.4..0.9 emissive
+        coreMat.emissiveIntensity =
+          0.4 + 0.5 * (0.5 + 0.5 * Math.sin(age * 3));
+
+        // Halo pulses 0.15..0.35 opacity, slightly different rate
+        haloMat.opacity = 0.15 + 0.2 * (0.5 + 0.5 * Math.sin(age * 2.3));
+      }
+    } else {
+      // ── Collect-out animation (scale up + fade out) ───────────────
+      const collectAge =
+        (entity.getValue(Ball, "collectAge") as number) + delta;
+      entity.setValue(Ball, "collectAge", collectAge);
+
+      const t = Math.min(collectAge / COLLECT_DURATION, 1);
+
+      // Scale up (1.0 → 1.4)
+      group.scale.setScalar(1 + 0.4 * t);
+
+      // Fade out core and halo
+      const core = group.children[0] as Mesh;
+      const halo = group.children[1] as Mesh;
+      const coreMat = core.material as MeshStandardMaterial;
+      const haloMat = halo.material as MeshBasicMaterial;
+      coreMat.opacity = 1 - t;
+      haloMat.opacity = 0.3 * (1 - t);
+
+      // Animation done
+      if (collectAge >= COLLECT_DURATION) {
+        entity.dispose();
+      }
+    }
   }
 
-  update(): void {
+  // ── Tap-to-collect ──────────────────────────────────────────────────
   for (const entity of this.queries.pressedBalls.entities) {
-    // Skip already-collected balls (just in case)
     const collected = entity.getValue(Ball, "collected");
     if (collected) continue;
 
-    // Collect it!
+    const age = entity.getValue(Ball, "age") as number;
+    if (age < SPAWN_DURATION) continue;
+
     const value = entity.getValue(Ball, "value") as number;
     BallScore.total += value;
 
@@ -106,11 +195,13 @@ export class BallCollectionSystem extends createSystem({
       `[BallCollectionSystem] ball collected! +${value} pts (total: ${BallScore.total})`
     );
 
-    // Mark as collected and remove from world
     entity.setValue(Ball, "collected", true);
-    entity.dispose();
   }
 }
+
+
+//update end
+
 }
 
 // ─── DEBUG: Fake scan trigger ────────────────────────────────────────────────
@@ -144,4 +235,39 @@ function createDebugButton(): void {
   document.body.appendChild(btn);
 }
 
+// ─── Score display ───────────────────────────────────────────────────────────
+// Tiny on-screen score counter so we can see points go up without the console.
+// Polls BallScore.total a few times per second; cheap and avoids signal wiring.
+
+function createScoreDisplay(): void {
+  const display = document.createElement("div");
+  display.id = "ball-score-display";
+  display.style.cssText = [
+    "position:fixed",
+    "top:16px",
+    "left:16px",
+    "z-index:9999",
+    "padding:10px 16px",
+    "background:rgba(0,0,0,0.6)",
+    "color:#00e5ff",
+    "border:2px solid #00e5ff",
+    "border-radius:8px",
+    "font-size:18px",
+    "font-weight:700",
+    "font-family:system-ui,sans-serif",
+    "letter-spacing:1px",
+    "box-shadow:0 0 16px rgba(0,229,255,0.4)",
+    "user-select:none",
+    "pointer-events:none",
+  ].join(";");
+  display.textContent = "⚡ 0 pts";
+  document.body.appendChild(display);
+
+  // Update the text 4x per second based on BallScore.total
+  setInterval(() => {
+    display.textContent = `⚡ ${BallScore.total} pts`;
+  }, 250);
+}
+
 createDebugButton();
+createScoreDisplay();

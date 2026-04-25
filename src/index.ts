@@ -3,6 +3,7 @@ import { SessionMode, World } from "@iwsdk/core";
 import { GameSystem } from "./game.js";
 import { ScannerSystem } from "./scanner.js";
 import { HUDSystem } from "./hud.js";
+import { BallCollectionSystem } from "./ballCollection.js"; //ball collection system 
 import { OBJECT_DETECTION_ENABLED } from "./config.js";
 
 World.create(
@@ -29,7 +30,8 @@ World.create(
   world
     .registerSystem(GameSystem)    // minimal stub
     .registerSystem(ScannerSystem) // camera capture + Claude analysis
-    .registerSystem(HUDSystem);    // scan button + score display
+    //.registerSystem(HUDSystem)    // [DEBUG] scan button + score display
+    .registerSystem(BallCollectionSystem); // energy ball collection
 
   if (OBJECT_DETECTION_ENABLED) {
     void import("./objectDetection.js").then(({ loadReferences, initObjectDetectionOverlay }) => {

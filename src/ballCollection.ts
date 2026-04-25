@@ -36,11 +36,25 @@ export const Ball = createComponent("Ball", {
   collectAge: { type: Types.Float32, default: 0 }, //how long since ball collected
 });
 
-// ─── Score state ─────────────────────────────────────────────────────────────
-// Total score, lives module-level so other modules (HUD, etc.) can read it.
+// ─── Score state + persistence ───────────────────────────────────────────────
+// Total score is persisted to localStorage so it survives page refreshes.
+// Other modules (coupon system, HUD, etc.) can read BallScore.total.
+//
+// To use from another file:
+//   import { BallScore } from "./ballCollection.js";
+//   const points = BallScore.total;
+
+const STORAGE_KEY = "voltron.ballScore";
+
+function loadSavedScore(): number {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return 0;
+  const parsed = parseInt(raw, 10);
+  return isNaN(parsed) ? 0 : parsed;
+}
 
 export const BallScore = {
-  total: 0,
+  total: loadSavedScore(),
 };
 
 // ─── BallCollectionSystem ────────────────────────────────────────────────────
@@ -189,11 +203,13 @@ update(delta: number): void {
     if (age < SPAWN_DURATION) continue;
 
     const value = entity.getValue(Ball, "value") as number;
-    BallScore.total += value;
+    addScore(value);
 
     console.log(
-      `[BallCollectionSystem] ball collected! +${value} pts (total: ${BallScore.total})`
+    `[BallCollectionSystem] ball collected! +${value} pts (total: ${BallScore.total})`
     );
+
+    
 
     entity.setValue(Ball, "collected", true);
   }
@@ -202,6 +218,15 @@ update(delta: number): void {
 
 //update end
 
+}
+
+// ─── Score helpers ──────────────────────────────────────────────────────────
+// All score changes go through addScore() so localStorage stays in sync.
+// Don't mutate BallScore.total directly elsewhere.
+
+function addScore(value: number): void {
+  BallScore.total += value;
+  localStorage.setItem(STORAGE_KEY, BallScore.total.toString());
 }
 
 // ─── DEBUG: Fake scan trigger ────────────────────────────────────────────────
@@ -271,3 +296,12 @@ function createScoreDisplay(): void {
 
 createDebugButton();
 createScoreDisplay();
+
+// ─── DEBUG: Reset score helper ───────────────────────────────────────────────
+// Type `resetScore()` in browser console to wipe saved score.
+
+(window as any).resetScore = (): void => {
+  localStorage.removeItem(STORAGE_KEY);
+  BallScore.total = 0;
+  console.log("[Debug] score reset to 0. Refresh page to verify persistence.");
+};

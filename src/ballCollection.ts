@@ -4,6 +4,10 @@ import {
   Types,
   Mesh,
   Group,
+  Sprite,
+  SpriteMaterial,
+  TextureLoader,
+  AdditiveBlending,
   SphereGeometry,
   MeshStandardMaterial,
   MeshBasicMaterial,
@@ -13,6 +17,50 @@ import {
   Pressed,
 } from "@iwsdk/core";
 
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+
+// ─── Shared spark texture ────────────────────────────────────────────────────
+// Loaded once at module init; all spark sprites share this single texture.
+
+const sparkTextures = [
+  new TextureLoader().load("/textures/spark.png"),
+  new TextureLoader().load("/textures/spark2.png"),
+  new TextureLoader().load("/textures/spark3.png"),
+];
+
+function pickRandomSparkTexture() {
+  return sparkTextures[Math.floor(Math.random() * sparkTextures.length)];
+}
+
+const PARTICLE_COLORS = [
+  0x00e5ff, // cyan
+  0x9d4dff, // purple
+  0xffffff, // white
+];
+
+function pickRandomParticleColor() {
+  return PARTICLE_COLORS[Math.floor(Math.random() * PARTICLE_COLORS.length)];
+}
+
+// ─── Energy ball model ───────────────────────────────────────────────────────
+// Load the GLB once at startup. spawnBall() clones it for each new ball.
+// While the model is loading, energyBallTemplate is null — spawnBall() falls
+// back to the procedural sphere, so the game keeps working.
+
+let energyBallTemplate: Group | null = null;
+
+new GLTFLoader().load(
+  "/gltf/energyBall/energy-ball.glb",
+  (gltf) => {
+    energyBallTemplate = gltf.scene;
+    console.log("[BallCollectionSystem] energy-ball.glb loaded");
+  },
+  undefined,
+  (err) => {
+    console.error("[BallCollectionSystem] failed to load energy-ball.glb:", err);
+  },
+);
 
 // ─── Event bus ────────────────────────────────────────────────────────────────
 // Anyone (scanner, debug button, fake test) can fire "scan-succeeded" on this
@@ -35,6 +83,21 @@ export const Ball = createComponent("Ball", {
   age: { type: Types.Float32, default: 0 }, //lifetime
   collectAge: { type: Types.Float32, default: 0 }, //how long since ball collected
 });
+
+// ─── Particle component ─────────────────────────────────────────────────────
+// Data for each spark in the collection burst.
+//   life       — total lifetime in seconds (when age >= life, particle dies)
+//   age        — how long this particle has existed
+//   vx, vy, vz — velocity vector components (m/s)
+
+export const Particle = createComponent("Particle", {
+  life: { type: Types.Float32, default: 0.6 },
+  age: { type: Types.Float32, default: 0 },
+  vx: { type: Types.Float32, default: 0 },
+  vy: { type: Types.Float32, default: 0 },
+  vz: { type: Types.Float32, default: 0 },
+});
+
 
 // ─── Score state + persistence ───────────────────────────────────────────────
 // Total score is persisted to localStorage so it survives page refreshes.
@@ -65,6 +128,7 @@ export const BallScore = {
 export class BallCollectionSystem extends createSystem({
   balls: { required: [Ball] },
   pressedBalls: { required: [Ball, Pressed] },
+  particles: { required: [Particle] },
 }) {
   init(): void {
     console.log("[BallCollectionSystem] init — listening for scan-succeeded");
@@ -79,31 +143,41 @@ export class BallCollectionSystem extends createSystem({
 // instead of create/dispose. 
 // "one scan, one ball." Pool gives better perf + supports rarity tiers cleanly.
 
-  private spawnBall(): void {
-  // 1. Build a group containing CORE (solid sphere) + HALO (translucent outer)
+
+//----spawn ball------
+
+ private spawnBall(): void {
+  // 1. Build a group containing CORE + HALO
   const group = new Group();
 
-  // Core sphere — violet/purple, glowing, the "click target"
-  const coreGeometry = new SphereGeometry(0.1, 32, 32);
-  const coreMaterial = new MeshStandardMaterial({
-    color: new Color(0x8a2be2),         // blue-violet
-    emissive: new Color(0xb966ff),      // brighter violet glow
-    emissiveIntensity: 0.6,
-    metalness: 0.4,
-    roughness: 0.3,
-    transparent: true,
-    opacity: 1,
-  });
-  const core = new Mesh(coreGeometry, coreMaterial);
+  // Core: GLB model if loaded, fallback to procedural sphere otherwise
+  let core: Group | Mesh;
+  if (energyBallTemplate) {
+    core = energyBallTemplate.clone(true);  // deep clone so each ball is independent
+    core.scale.setScalar(0.15);              // tweak as needed for model size
+  } else {
+    // Fallback if model hasn't loaded yet
+    const coreGeometry = new SphereGeometry(0.1, 32, 32);
+    const coreMaterial = new MeshStandardMaterial({
+      color: new Color(0x8a2be2),
+      emissive: new Color(0xb966ff),
+      emissiveIntensity: 0.6,
+      metalness: 0.4,
+      roughness: 0.3,
+      transparent: true,
+      opacity: 1,
+    });
+    core = new Mesh(coreGeometry, coreMaterial);
+  }
   group.add(core);
 
   // Halo — larger, translucent cyan, no lighting (always glowing)
   const haloGeometry = new SphereGeometry(0.18, 24, 24);
   const haloMaterial = new MeshBasicMaterial({
-    color: new Color(0x00e5ff),         // cyan
+    color: new Color(0x9d4dff),         // vivid purple
     transparent: true,
     opacity: 0.25,
-    depthWrite: false,                  // halo doesn't block what's behind it
+    depthWrite: false,
   });
   const halo = new Mesh(haloGeometry, haloMaterial);
   group.add(halo);
@@ -126,7 +200,82 @@ export class BallCollectionSystem extends createSystem({
   );
 }
 
+
+//-------spawn burst---------------------------
+private spawnBurst(position: Vector3): void {
+  const PARTICLE_COUNT = 24;          // doubled for more impact
+  const SPEED_MIN = 1.0;
+  const SPEED_MAX = 3.0;              // some particles fly fast, some slow
+
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    // Random spark texture from the pool
+    const material = new SpriteMaterial({
+      map: pickRandomSparkTexture(),
+      color: new Color(pickRandomParticleColor()),
+      transparent: true,
+      opacity: 1,
+      blending: AdditiveBlending,
+      depthWrite: false,
+    });
+    const sprite = new Sprite(material);
+
+    // Random size variation — some particles are bigger
+    const baseSize = 0.12 + Math.random() * 0.18;  // 0.12..0.30
+    sprite.scale.setScalar(baseSize);
+
+    // Random direction (spherical)
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const speed = SPEED_MIN + Math.random() * (SPEED_MAX - SPEED_MIN);
+    const vx = speed * Math.sin(phi) * Math.cos(theta);
+    const vy = speed * Math.sin(phi) * Math.sin(theta);
+    const vz = speed * Math.cos(phi);
+
+    // Wrap in entity, place at burst origin
+    const entity = this.world.createTransformEntity(sprite);
+    entity.object3D!.position.copy(position);
+
+    // Particle component — slightly varied lifetimes
+    entity.addComponent(Particle, {
+      life: 0.4 + Math.random() * 0.5,
+      age: 0,
+      vx, vy, vz,
+    });
+  }
+}
   
+//---spawn ambient---
+private spawnAmbientSparks(position: Vector3, count: number): void {
+  for (let i = 0; i < count; i++) {
+    const material = new SpriteMaterial({
+      map: pickRandomSparkTexture(),
+      color: new Color(0x00e5ff),
+      transparent: true,
+      opacity: 1,
+      blending: AdditiveBlending,
+      depthWrite: false,
+    });
+    const sprite = new Sprite(material);
+    sprite.scale.setScalar(0.05 + Math.random() * 0.06);  // small: 0.05–0.11
+
+    // Slow drift in a random direction (much slower than burst)
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const speed = 0.2 + Math.random() * 0.3;  // 0.2–0.5 m/s, gentle
+    const vx = speed * Math.sin(phi) * Math.cos(theta);
+    const vy = speed * Math.sin(phi) * Math.sin(theta);
+    const vz = speed * Math.cos(phi);
+
+    const entity = this.world.createTransformEntity(sprite);
+    entity.object3D!.position.copy(position);
+
+    entity.addComponent(Particle, {
+      life: 0.3 + Math.random() * 0.4,  // short-lived
+      age: 0,
+      vx, vy, vz,
+    });
+  }
+}
 
 //update start
 
@@ -156,18 +305,17 @@ update(delta: number): void {
 
       // ── Pulse on core + halo (independent rates for shimmer) ──────
       if (age > SPAWN_DURATION) {
-        const core = group.children[0] as Mesh;
-        const halo = group.children[1] as Mesh;
-        const coreMat = core.material as MeshStandardMaterial;
-        const haloMat = halo.material as MeshBasicMaterial;
+      const halo = group.children[1] as Mesh;
+      const haloMat = halo.material as MeshBasicMaterial;
 
-        // Core pulses 0.4..0.9 emissive
-        coreMat.emissiveIntensity =
-          0.4 + 0.5 * (0.5 + 0.5 * Math.sin(age * 3));
+      // Halo pulses 0.15..0.35 opacity
+      haloMat.opacity = 0.15 + 0.2 * (0.5 + 0.5 * Math.sin(age * 2.3));
 
-        // Halo pulses 0.15..0.35 opacity, slightly different rate
-        haloMat.opacity = 0.15 + 0.2 * (0.5 + 0.5 * Math.sin(age * 2.3));
+      // Ambient sparks
+      if (Math.random() < delta * 10) {
+        this.spawnAmbientSparks(group.position, 1 + Math.floor(Math.random() * 2));
       }
+    }
     } else {
       // ── Collect-out animation (scale up + fade out) ───────────────
       const collectAge =
@@ -179,12 +327,9 @@ update(delta: number): void {
       // Scale up (1.0 → 1.4)
       group.scale.setScalar(1 + 0.4 * t);
 
-      // Fade out core and halo
-      const core = group.children[0] as Mesh;
+      // Fade out halo (the GLB core fades naturally via scale; visible briefly)
       const halo = group.children[1] as Mesh;
-      const coreMat = core.material as MeshStandardMaterial;
       const haloMat = halo.material as MeshBasicMaterial;
-      coreMat.opacity = 1 - t;
       haloMat.opacity = 0.3 * (1 - t);
 
       // Animation done
@@ -208,11 +353,43 @@ update(delta: number): void {
     console.log(
     `[BallCollectionSystem] ball collected! +${value} pts (total: ${BallScore.total})`
     );
-
+    // Spawn burst at the ball's position
+    this.spawnBurst(entity.object3D!.position.clone());
     
 
     entity.setValue(Ball, "collected", true);
   }
+
+// ── Animate burst particles ─────────────────────────────────────────
+for (const entity of this.queries.particles.entities) {
+  const age = (entity.getValue(Particle, "age") as number) + delta;
+  entity.setValue(Particle, "age", age);
+  const life = entity.getValue(Particle, "life") as number;
+
+  if (age >= life) {
+    entity.dispose();
+    continue;
+  }
+
+  // Move outward at velocity
+  const vx = entity.getValue(Particle, "vx") as number;
+  const vy = entity.getValue(Particle, "vy") as number;
+  const vz = entity.getValue(Particle, "vz") as number;
+  const obj = entity.object3D!;
+  obj.position.x += vx * delta;
+  obj.position.y += vy * delta;
+  obj.position.z += vz * delta;
+
+  // Fade out as particle ages
+  const t = age / life;
+  const sprite = obj as Sprite;
+  const mat = sprite.material as SpriteMaterial;
+  mat.opacity = 1 - t;
+
+  // Shrink slightly as it fades
+  obj.scale.setScalar(0.15 * (1 - t * 0.4));
+}
+
 }
 
 

@@ -1,0 +1,37 @@
+<style>
+  .container {
+    width: 80;
+    padding: 3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: #09090b;
+    border-color: #27272a;
+    border-width: 0.15;
+    border-radius: 3;
+    opacity: 0.95;
+  }
+
+  #scan-row {
+    width: 100%;
+    padding: 3;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #scan-row {
+    cursor: pointer;
+  }
+  #scan-btn {
+    font-size: 6;
+    font-weight: bold;
+    color: #ffffff;
+  }
+</style>
+<div class="container">
+  <div id="scan-row">
+    <span id="scan-btn">Scan</span>
+  </div>
+</div>

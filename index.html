@@ -4,12 +4,24 @@
     <meta charset="utf-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"
     />
     <title>voltron</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Inter', sans-serif; }</style>
   </head>
   <body style="margin: 0">
     <div id="scene-container"></div>
     <script type="module" src="/src/index.ts"></script>
+    <script>
+      if (new URLSearchParams(location.search).get('debug') === '1') {
+        var s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/eruda';
+        s.onload = function() { eruda.init(); };
+        document.head.appendChild(s);
+      }
+    </script>
   </body>
 </html>

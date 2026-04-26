@@ -1,0 +1,23 @@
+<style>
+  .container {
+    width: 80;
+    padding: 6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: #09090b;
+    border-color: #27272a;
+    border-width: 0.15;
+    border-radius: 3;
+    opacity: 0.95;
+  }
+  #instructions-text {
+    font-size: 4.5;
+    color: #fafafa;
+    text-align: center;
+    width: 100%;
+  }
+</style>
+<div class="container">
+  <span id="instructions-text">Here are the instructions for the game</span>
+</div>

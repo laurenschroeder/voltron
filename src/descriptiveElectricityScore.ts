@@ -28,10 +28,23 @@ function model() {
   );
 }
 
+const MOCK_RESPONSE: ElectricityScore = {
+  score: 73,
+  reasoning:
+    "Strong electrical vibes detected! I can see what appears to be wiring or circuitry elements in the frame. The composition suggests an environment rich with electrical infrastructure. You're clearly in the right place.",
+  elements: ["wiring", "circuit board", "power supply"],
+};
+
 export async function analyzeForElectricityDescriptive(
   imageBase64: string,
   mimeType: "image/jpeg" | "image/png" | "image/webp" = "image/jpeg",
 ): Promise<ElectricityScore> {
+  const env = (import.meta as unknown as Record<string, Record<string, string>>).env;
+  if (env.VITE_MOCK_SCAN === "true") {
+    await new Promise((r) => setTimeout(r, 1200));
+    return MOCK_RESPONSE;
+  }
+
   const delays = [2000, 5000, 10000];
   let lastErr: unknown;
 

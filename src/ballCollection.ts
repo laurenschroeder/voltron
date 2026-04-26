@@ -217,6 +217,59 @@ export class BallCollectionSystem extends createSystem({
     console.log("[BallCollectionSystem] scan-succeeded received — spawning ball");
     this.spawnBall();
   });
+
+    // ── Auto-spawn ────────────────────────────────────────────────────
+  // Spawns a ball whenever there isn't one alive. Re-checks every 1s.
+  // Includes a small cooldown after collection so it doesn't feel spammy.
+  // Auto-enables in XR mode (Quest), where we can't click the HTML button.
+  // Toggle manually from console with setAutoSpawn(true/false).
+
+  let autoSpawnInterval: number | null = null;
+  let lastSpawnAttempt = 0;
+  const SPAWN_COOLDOWN_MS = 1500; // wait 1.5s after a ball disappears before spawning next
+
+  const startAutoSpawn = (): void => {
+    if (autoSpawnInterval) return;
+    autoSpawnInterval = window.setInterval(() => {
+      // Skip if a ball is already alive
+      let hasBall = false;
+      for (const _ of this.queries.balls.entities) {
+        hasBall = true;
+        break;
+      }
+      if (hasBall) {
+        lastSpawnAttempt = Date.now();
+        return;
+      }
+      // Wait for cooldown after the last ball was alive
+      if (Date.now() - lastSpawnAttempt < SPAWN_COOLDOWN_MS) return;
+      ballEventBus.dispatchEvent(new CustomEvent("scan-succeeded"));
+    }, 500);
+    console.log("[BallCollectionSystem] auto-spawn ON");
+  };
+
+  const stopAutoSpawn = (): void => {
+    if (!autoSpawnInterval) return;
+    clearInterval(autoSpawnInterval);
+    autoSpawnInterval = null;
+    console.log("[BallCollectionSystem] auto-spawn OFF");
+  };
+
+  (window as any).setAutoSpawn = (enabled: boolean): void => {
+    if (enabled) startAutoSpawn();
+    else stopAutoSpawn();
+  };
+
+  // Auto-enable when entering XR session
+  this.world.renderer.xr.addEventListener("sessionstart", () => {
+    console.log("[BallCollectionSystem] XR session started — enabling auto-spawn");
+    startAutoSpawn();
+  });
+
+  this.world.renderer.xr.addEventListener("sessionend", () => {
+    console.log("[BallCollectionSystem] XR session ended — disabling auto-spawn");
+    stopAutoSpawn();
+  });
 }
 
 // TODO: object pool: create n balls at init, activate/deactivate
@@ -227,6 +280,11 @@ export class BallCollectionSystem extends createSystem({
 //----spawn ball------
 
 private spawnBall(): void {
+  // Don't spawn if one (or more) is already alive
+  for (const _ of this.queries.balls.entities) {
+  console.log("[BallCollectionSystem] ball already exists, skipping spawn");
+  return;
+  }
   // Pick a rarity for this ball
   const rarity = pickRandomRarity();
 
@@ -269,7 +327,7 @@ private spawnBall(): void {
   const camera = this.world.camera;
   const forward = new Vector3();
   camera.getWorldDirection(forward);
-  const spawnPos = camera.position.clone().add(forward.multiplyScalar(3));
+  const spawnPos = camera.position.clone().add(forward.multiplyScalar(1.5));
   entity.object3D!.position.copy(spawnPos);
   entity.object3D!.scale.setScalar(0); // start invisible, will grow in
 
@@ -650,7 +708,7 @@ export function getMeterScreenPosition(): { x: number; y: number } | null {
   };
 }
 
-createDebugButton();
+//createDebugButton();
 createScoreDisplay();
 
 

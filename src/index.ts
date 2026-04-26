@@ -11,7 +11,7 @@ World.create(
   {
     assets: {},
     xr: {
-      sessionMode: SessionMode.ImmersiveVR,
+      sessionMode: SessionMode.ImmersiveAR,
       offer: "always",
       features: { handTracking: true, layers: true },
     },

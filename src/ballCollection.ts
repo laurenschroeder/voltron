@@ -80,8 +80,12 @@ export const ballEventBus = new EventTarget();
 export const Ball = createComponent("Ball", {
   value: { type: Types.Float32, default: 1 },
   collected: { type: Types.Boolean, default: false },
-  age: { type: Types.Float32, default: 0 }, //lifetime
-  collectAge: { type: Types.Float32, default: 0 }, //how long since ball collected
+  age: { type: Types.Float32, default: 0 },
+  collectAge: { type: Types.Float32, default: 0 },
+  spawnX: { type: Types.Float32, default: 0 },
+  spawnY: { type: Types.Float32, default: 0 },
+  spawnZ: { type: Types.Float32, default: 0 },
+  rarity: { type: Types.Int8, default: 0 },  // 0=common, 1=rare, 2=legendary
 });
 
 // ─── Particle component ─────────────────────────────────────────────────────
@@ -120,6 +124,82 @@ export const BallScore = {
   total: loadSavedScore(),
 };
 
+// ─── Rarity tiers ────────────────────────────────────────────────────────────
+// Each tier defines points, spawn weight, and visual style.
+// Weighted random pick: weights are proportional probabilities.
+
+interface RarityTier {
+  name: string;
+  value: number;
+  weight: number;
+  haloColor: number;
+  scale: number;
+}
+
+const RARITY_TIERS: RarityTier[] = [
+  // common: 70% chance, 5 pts, purple halo, normal size
+  { name: "common",    value: 5,  weight: 70, haloColor: 0x9d4dff, scale: 1.0 },
+  // rare: 25% chance, 15 pts, cyan halo, slightly bigger
+  { name: "rare",      value: 15, weight: 25, haloColor: 0x00e5ff, scale: 1.2 },
+  // legendary: 5% chance, 50 pts, gold halo, much bigger
+  { name: "legendary", value: 50, weight: 5,  haloColor: 0xffd700, scale: 1.5 },
+];
+
+function pickRandomRarity(): RarityTier {
+  const totalWeight = RARITY_TIERS.reduce((sum, t) => sum + t.weight, 0);
+  let roll = Math.random() * totalWeight;
+  for (const tier of RARITY_TIERS) {
+    roll -= tier.weight;
+    if (roll <= 0) return tier;
+  }
+  return RARITY_TIERS[0]; // fallback (shouldn't happen)
+}
+
+// ─── Reward tiers ────────────────────────────────────────────────────────────
+// As score climbs, the player earns rewards at each threshold.
+// "earned" tracks how far through the tiers the player has progressed.
+// We compare score before/after each collection to detect threshold crossings.
+
+interface RewardTier {
+  name: string;
+  threshold: number;
+  emoji: string;
+  flashColor: number;
+  message: string;
+}
+
+const REWARD_TIERS: RewardTier[] = [
+  { name: "bronze",   threshold: 50,  emoji: "🥉", flashColor: 0x00e5ff, message: "BRONZE COUPON UNLOCKED" },
+  { name: "silver",   threshold: 100, emoji: "🥈", flashColor: 0x9d4dff, message: "SILVER COUPON UNLOCKED" },
+  { name: "gold",     threshold: 200, emoji: "🥇", flashColor: 0xffd700, message: "GOLD COUPON UNLOCKED" },
+];
+
+// Highest reward index the player has earned (-1 = none, 0 = bronze, etc.)
+const REWARD_EARNED_KEY = "voltron.rewardEarned";
+
+function loadEarnedReward(): number {
+  const raw = localStorage.getItem(REWARD_EARNED_KEY);
+  if (!raw) return -1;
+  const parsed = parseInt(raw, 10);
+  return isNaN(parsed) ? -1 : parsed;
+}
+
+const RewardState = {
+  highestEarned: loadEarnedReward(),
+};
+
+function saveEarnedReward(): void {
+  localStorage.setItem(REWARD_EARNED_KEY, RewardState.highestEarned.toString());
+}
+
+// Returns the next unearned tier (or null if all earned)
+function getNextRewardTier(): RewardTier | null {
+  const nextIndex = RewardState.highestEarned + 1;
+  return REWARD_TIERS[nextIndex] ?? null;
+}
+
+
+
 // ─── BallCollectionSystem ────────────────────────────────────────────────────
 // Listens for "scan-succeeded" events and (later) spawns balls + handles
 // collection logic. For now, just logs that it heard the event so we can
@@ -131,13 +211,13 @@ export class BallCollectionSystem extends createSystem({
   particles: { required: [Particle] },
 }) {
   init(): void {
-    console.log("[BallCollectionSystem] init — listening for scan-succeeded");
+  console.log("[BallCollectionSystem] init — listening for scan-succeeded");
 
-    ballEventBus.addEventListener("scan-succeeded", () => {
-      console.log("[BallCollectionSystem] scan-succeeded received — spawning ball");
-      this.spawnBall();
-    });
-  }
+  ballEventBus.addEventListener("scan-succeeded", () => {
+    console.log("[BallCollectionSystem] scan-succeeded received — spawning ball");
+    this.spawnBall();
+  });
+}
 
 // TODO: object pool: create n balls at init, activate/deactivate
 // instead of create/dispose. 
@@ -146,17 +226,18 @@ export class BallCollectionSystem extends createSystem({
 
 //----spawn ball------
 
- private spawnBall(): void {
+private spawnBall(): void {
+  // Pick a rarity for this ball
+  const rarity = pickRandomRarity();
+
   // 1. Build a group containing CORE + HALO
   const group = new Group();
 
   // Core: GLB model if loaded, fallback to procedural sphere otherwise
   let core: Group | Mesh;
   if (energyBallTemplate) {
-    core = energyBallTemplate.clone(true);  // deep clone so each ball is independent
-    core.scale.setScalar(0.15);              // tweak as needed for model size
+    core = energyBallTemplate.clone(true);
   } else {
-    // Fallback if model hasn't loaded yet
     const coreGeometry = new SphereGeometry(0.1, 32, 32);
     const coreMaterial = new MeshStandardMaterial({
       color: new Color(0x8a2be2),
@@ -169,12 +250,13 @@ export class BallCollectionSystem extends createSystem({
     });
     core = new Mesh(coreGeometry, coreMaterial);
   }
+  core.scale.setScalar(0.15 * rarity.scale);
   group.add(core);
 
-  // Halo — larger, translucent cyan, no lighting (always glowing)
-  const haloGeometry = new SphereGeometry(0.18, 24, 24);
+  // Halo — color and size depend on rarity
+  const haloGeometry = new SphereGeometry(0.18 * rarity.scale, 24, 24);
   const haloMaterial = new MeshBasicMaterial({
-    color: new Color(0x9d4dff),         // vivid purple
+    color: new Color(rarity.haloColor),
     transparent: true,
     opacity: 0.25,
     depthWrite: false,
@@ -192,11 +274,18 @@ export class BallCollectionSystem extends createSystem({
   entity.object3D!.scale.setScalar(0); // start invisible, will grow in
 
   // 3. Attach Ball component (data) and Interactable (so it can be clicked/tapped)
-  entity.addComponent(Ball, { value: 1, collected: false });
+  entity.addComponent(Ball, {
+    value: rarity.value,
+    collected: false,
+    spawnX: spawnPos.x,
+    spawnY: spawnPos.y,
+    spawnZ: spawnPos.z,
+    rarity: RARITY_TIERS.indexOf(rarity),
+  });
   entity.addComponent(Interactable);
 
   console.log(
-    `[BallCollectionSystem] ball spawned at (${spawnPos.x.toFixed(2)}, ${spawnPos.y.toFixed(2)}, ${spawnPos.z.toFixed(2)})`
+    `[BallCollectionSystem] ${rarity.name} ball spawned (+${rarity.value} pts) at (${spawnPos.x.toFixed(2)}, ${spawnPos.y.toFixed(2)}, ${spawnPos.z.toFixed(2)})`
   );
 }
 
@@ -302,6 +391,13 @@ update(delta: number): void {
 
       // ── Slow rotation (always, for life) ──────────────────────────
       group.rotation.y += delta * 0.5;  // half radian per second
+      // ── Subtle float (sine waves on Y and X around spawn position) ─
+      const spawnX = entity.getValue(Ball, "spawnX") as number;
+      const spawnY = entity.getValue(Ball, "spawnY") as number;
+      const spawnZ = entity.getValue(Ball, "spawnZ") as number;
+      group.position.x = spawnX + Math.sin(age * 2.1) * 0.02;  // ±2cm side-to-side
+      group.position.y = spawnY + Math.sin(age * 3.1) * 0.05;  // ±5cm up-down
+      group.position.z = spawnZ;
 
       // ── Pulse on core + halo (independent rates for shimmer) ──────
       if (age > SPAWN_DURATION) {
@@ -402,8 +498,20 @@ for (const entity of this.queries.particles.entities) {
 // Don't mutate BallScore.total directly elsewhere.
 
 function addScore(value: number): void {
+  const before = BallScore.total;
   BallScore.total += value;
   localStorage.setItem(STORAGE_KEY, BallScore.total.toString());
+
+  // Check if we crossed any reward thresholds
+  for (let i = RewardState.highestEarned + 1; i < REWARD_TIERS.length; i++) {
+    const tier = REWARD_TIERS[i];
+    if (before < tier.threshold && BallScore.total >= tier.threshold) {
+      RewardState.highestEarned = i;
+      saveEarnedReward();
+      showRewardPopup(tier);
+      console.log(`[BallCollectionSystem] reward unlocked: ${tier.name}`);
+    }
+  }
 }
 
 // ─── DEBUG: Fake scan trigger ────────────────────────────────────────────────
@@ -441,44 +549,174 @@ function createDebugButton(): void {
 // Tiny on-screen score counter so we can see points go up without the console.
 // Polls BallScore.total a few times per second; cheap and avoids signal wiring.
 
+// ─── Energy meter (replaces simple score text) ───────────────────────────────
+// Shows a vertical bar that fills as score climbs toward the next reward
+// threshold. Visual is placeholder; design team will deliver the final version.
+//
+// We export a couple of getters so other code (the ball-flies-to-meter
+// animation) can ask where the meter is on screen.
+
+const REWARD_THRESHOLD = 50; // first reward at 50 pts
+
+let _meterFillEl: HTMLDivElement | null = null;
+let _meterContainerEl: HTMLDivElement | null = null;
+
 function createScoreDisplay(): void {
-  const display = document.createElement("div");
-  display.id = "ball-score-display";
-  display.style.cssText = [
+  const container = document.createElement("div");
+  container.id = "energy-meter";
+  container.style.cssText = [
     "position:fixed",
-    "top:16px",
-    "left:16px",
-    "z-index:9999",
-    "padding:10px 16px",
-    "background:rgba(0,0,0,0.6)",
-    "color:#00e5ff",
+    "top:50%",
+    "right:24px",
+    "transform:translateY(-50%)",
+    "width:32px",
+    "height:300px",
+    "background:rgba(0,0,0,0.5)",
     "border:2px solid #00e5ff",
-    "border-radius:8px",
-    "font-size:18px",
-    "font-weight:700",
-    "font-family:system-ui,sans-serif",
-    "letter-spacing:1px",
-    "box-shadow:0 0 16px rgba(0,229,255,0.4)",
+    "border-radius:16px",
+    "box-shadow:0 0 24px rgba(0,229,255,0.4)",
+    "z-index:9999",
+    "overflow:hidden",
     "user-select:none",
     "pointer-events:none",
   ].join(";");
-  display.textContent = "⚡ 0 pts";
-  document.body.appendChild(display);
 
-  // Update the text 4x per second based on BallScore.total
+  const fill = document.createElement("div");
+  fill.style.cssText = [
+    "position:absolute",
+    "left:0",
+    "right:0",
+    "bottom:0",
+    "height:0%",
+    "background:linear-gradient(to top, #9d4dff, #00e5ff)",
+    "transition:height 0.3s ease-out",
+    "box-shadow:0 0 16px rgba(0,229,255,0.8)",
+  ].join(";");
+  container.appendChild(fill);
+
+  // Score number above the meter
+  const label = document.createElement("div");
+  label.style.cssText = [
+    "position:fixed",
+    "top:calc(50% - 180px)",
+    "right:8px",
+    "color:#00e5ff",
+    "font-family:system-ui,sans-serif",
+    "font-size:18px",
+    "font-weight:700",
+    "letter-spacing:1px",
+    "text-shadow:0 0 8px rgba(0,229,255,0.8)",
+    "z-index:9999",
+    "user-select:none",
+    "pointer-events:none",
+  ].join(";");
+  label.textContent = "⚡ 0";
+  document.body.appendChild(label);
+
+  document.body.appendChild(container);
+
+  _meterFillEl = fill;
+  _meterContainerEl = container;
+
+  // Update 4x per second
   setInterval(() => {
-    display.textContent = `⚡ ${BallScore.total} pts`;
+    const next = getNextRewardTier();
+    if (next) {
+      // Show progress toward next reward
+      // Calculate base of current tier (last threshold or 0)
+      const earnedIdx = RewardState.highestEarned;
+      const baseScore = earnedIdx >= 0 ? REWARD_TIERS[earnedIdx].threshold : 0;
+      const progress = BallScore.total - baseScore;
+      const range = next.threshold - baseScore;
+      const pct = Math.max(0, Math.min(progress / range, 1)) * 100;
+      fill.style.height = `${pct}%`;
+      label.textContent = `⚡ ${BallScore.total} → ${next.emoji}`;
+    } else {
+      // All rewards earned, show full meter
+      fill.style.height = "100%";
+      label.textContent = `⚡ ${BallScore.total} ⭐`;
+    }
   }, 250);
+}
+
+// Returns the screen-space center of the meter, in pixels.
+// Used by the ball-flies-to-meter animation in Chunk B.
+export function getMeterScreenPosition(): { x: number; y: number } | null {
+  if (!_meterContainerEl) return null;
+  const rect = _meterContainerEl.getBoundingClientRect();
+  return {
+    x: rect.left + rect.width / 2,
+    y: rect.top + rect.height / 2,
+  };
 }
 
 createDebugButton();
 createScoreDisplay();
+
+
 
 // ─── DEBUG: Reset score helper ───────────────────────────────────────────────
 // Type `resetScore()` in browser console to wipe saved score.
 
 (window as any).resetScore = (): void => {
   localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(REWARD_EARNED_KEY);
   BallScore.total = 0;
-  console.log("[Debug] score reset to 0. Refresh page to verify persistence.");
+  RewardState.highestEarned = -1;
+  console.log("[Debug] score and rewards reset. Refresh page to verify.");
 };
+
+// ─── Reward unlock popup ─────────────────────────────────────────────────────
+// Shown for 3 seconds when a threshold is crossed.
+
+function showRewardPopup(tier: RewardTier): void {
+  const popup = document.createElement("div");
+  popup.style.cssText = [
+    "position:fixed",
+    "top:50%",
+    "left:50%",
+    "transform:translate(-50%, -50%)",
+    "z-index:99999",
+    "padding:24px 36px",
+    "background:rgba(0,0,0,0.85)",
+    `border:3px solid #${tier.flashColor.toString(16).padStart(6, "0")}`,
+    "border-radius:16px",
+    "color:white",
+    "font-family:system-ui,sans-serif",
+    "font-size:28px",
+    "font-weight:800",
+    "letter-spacing:2px",
+    "text-align:center",
+    `box-shadow:0 0 48px #${tier.flashColor.toString(16).padStart(6, "0")}, 0 0 16px rgba(0,0,0,0.8)`,
+    "user-select:none",
+    "pointer-events:none",
+    "animation:rewardPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
+  ].join(";");
+
+  popup.innerHTML = `
+    <div style="font-size:64px; margin-bottom:8px;">${tier.emoji}</div>
+    <div>${tier.message}</div>
+  `;
+
+  // Inject keyframes if not present
+  if (!document.getElementById("reward-anim-style")) {
+    const style = document.createElement("style");
+    style.id = "reward-anim-style";
+    style.textContent = `
+      @keyframes rewardPop {
+        0%   { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+        100% { transform: translate(-50%, -50%) scale(1);   opacity: 1; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  document.body.appendChild(popup);
+
+  // Auto-remove after 3 seconds
+  setTimeout(() => {
+    popup.style.transition = "opacity 0.5s";
+    popup.style.opacity = "0";
+    setTimeout(() => popup.remove(), 500);
+  }, 2500);
+}

@@ -26,6 +26,7 @@ World.create(
 ).then((world) => {
   world.camera.position.set(0, 1.5, 0);
   world.camera.lookAt(0, 1.5, -5);
+   
 
   world
     .registerSystem(GameSystem)    // minimal stub

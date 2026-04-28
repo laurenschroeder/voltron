@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { USE_MOCK } from "./config.js";
 
 export interface ElectricityScore {
   score: number;
@@ -39,8 +40,7 @@ export async function analyzeForElectricityDescriptive(
   imageBase64: string,
   mimeType: "image/jpeg" | "image/png" | "image/webp" = "image/jpeg",
 ): Promise<ElectricityScore> {
-  const env = (import.meta as unknown as Record<string, Record<string, string>>).env;
-  if (env.VITE_MOCK_SCAN === "true") {
+  if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 1200));
     return MOCK_RESPONSE;
   }

@@ -4,6 +4,7 @@ import { FlowSystem } from "./flow.js";
 import { GameSystem } from "./game.js";
 import { HUDSystem } from "./hud.js";
 import { ScannerSystem } from "./scanner.js";
+import { ToolbarSystem } from "./toolbar.js";
 import { OBJECT_DETECTION_ENABLED } from "./config.js";
 
 World.create(document.getElementById("scene-container") as HTMLDivElement, {
@@ -26,16 +27,17 @@ World.create(document.getElementById("scene-container") as HTMLDivElement, {
   world.camera.lookAt(0, 1.5, -5);
 
   world
-    .registerSystem(GameSystem) // minimal stub
+    .registerSystem(GameSystem)    // minimal stub
     .registerSystem(ScannerSystem) // camera capture + Gemini analysis
-    .registerSystem(FlowSystem) // splash → instructions → game flow
-    .registerSystem(HUDSystem); // scan button + score display
+    .registerSystem(FlowSystem)    // splash → instructions → game flow
+    .registerSystem(HUDSystem)     // scan button + score display
+    .registerSystem(ToolbarSystem); // right-side icon toolbar
 
   if (OBJECT_DETECTION_ENABLED) {
     void import("./objectDetection.js").then(
       ({ loadReferences, initObjectDetectionOverlay }) => {
         void loadReferences();
-        initObjectDetectionOverlay();
+        // initObjectDetectionOverlay(); // disabled — uncomment to debug TF.js detection
       },
     );
   }

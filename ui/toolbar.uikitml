@@ -1,0 +1,31 @@
+<style>
+  .toolbar {
+    padding-top: 12;
+    padding-right: 4;
+    padding-bottom: 12;
+    padding-left: 4;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 7;
+    background-color: rgba(188, 74, 255, 0.14);
+    border-radius: 18;
+    border-width: 2;
+    border-top-color: #48F9FF;
+    border-right-color: #BC4AFF;
+    border-bottom-color: #48F9FF;
+    border-left-color: #BC4AFF;
+  }
+  .icon {
+    width: 28;
+    height: 28;
+    color: #ffffff;
+    cursor: pointer;
+  }
+</style>
+<div class="toolbar">
+  <LogOutIcon class="icon"></LogOutIcon>
+  <CirclePauseIcon class="icon"></CirclePauseIcon>
+  <CircleHelpIcon class="icon"></CircleHelpIcon>
+</div>

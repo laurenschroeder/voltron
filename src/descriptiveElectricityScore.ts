@@ -30,9 +30,8 @@ function model() {
 
 const MOCK_RESPONSE: ElectricityScore = {
   score: 73,
-  reasoning:
-    "Strong electrical vibes detected! I can see what appears to be wiring or circuitry elements in the frame. The composition suggests an environment rich with electrical infrastructure. You're clearly in the right place.",
-  elements: ["wiring", "circuit board", "power supply"],
+  reasoning: "",
+  elements: [],
 };
 
 export async function analyzeForElectricityDescriptive(

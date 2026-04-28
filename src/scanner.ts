@@ -25,6 +25,14 @@ let _snapshot: HTMLImageElement | null = null;
 
 // ─── Module-level functions called by FlowSystem / HUDSystem ─────────────────
 
+export function pauseCamera(): void {
+  if (_video && !_video.paused) _video.pause();
+}
+
+export function resumeCamera(): void {
+  if (_video && _video.paused) void _video.play();
+}
+
 export function startCamera(): void {
   navigator.mediaDevices
     .getUserMedia({ video: { facingMode: { ideal: "environment" } } })
@@ -74,7 +82,7 @@ export function triggerScan(): void {
   const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
   console.log("[scan] frame captured, base64 length:", base64.length);
 
-  // Show the snapshot thumbnail immediately
+  // Store snapshot data — also shown as fixed thumbnail bottom-left
   if (_snapshot) {
     _snapshot.src = dataUrl;
     _snapshot.style.display = "block";
@@ -132,7 +140,7 @@ export class ScannerSystem extends createSystem({}) {
     _snapshot = document.createElement("img");
     _snapshot.style.cssText = [
       "position:fixed",
-      "bottom:calc(20px + env(safe-area-inset-bottom, 0px) + 18vw + 8px + 64px + 8px)",
+      "bottom:calc(20px + env(safe-area-inset-bottom, 0px))",
       "left:calc(16px + env(safe-area-inset-left, 0px))",
       "width:120px",
       "height:90px",
@@ -154,7 +162,7 @@ export class ScannerSystem extends createSystem({}) {
     this.world.renderer.domElement.style.background = "transparent";
     // Force alpha blending on the canvas element itself
     this.world.renderer.domElement.style.cssText +=
-      ";position:fixed;inset:0;width:100%;height:100%;z-index:1";
+      ";position:fixed;inset:0;width:100%;height:100%;z-index:15;touch-action:none";
   }
 
   // eslint-disable-next-line @typescript-eslint/no-empty-function

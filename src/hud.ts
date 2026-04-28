@@ -15,7 +15,7 @@ import { ObjectDetectionData } from "./objectDetection.js";
 /** Shared flag — ToolbarSystem reads this to lock itself during collect mode. */
 export let collectModeActive = false;
 
-const TIMER_DURATION = 10; // seconds (testing)
+const TIMER_DURATION = 3 * 60; // seconds
 const TIMER_RADIUS = 32;
 const TIMER_CIRCUMFERENCE = 2 * Math.PI * TIMER_RADIUS; // ≈ 201.06
 
@@ -202,7 +202,9 @@ export class HUDSystem extends createSystem({}) {
   }
 
   private buildScanPanel(): HTMLDivElement {
-    const TAIL = 18, R = 14, TAIL_X = 28;
+    const TAIL = 18,
+      R = 14,
+      TAIL_X = 28;
     const NS = "http://www.w3.org/2000/svg";
 
     const panel = document.createElement("div");
@@ -534,7 +536,10 @@ export class HUDSystem extends createSystem({}) {
       }
     };
     btn.addEventListener("click", onPress);
-    btn.addEventListener("touchend", (e) => { e.preventDefault(); onPress(); });
+    btn.addEventListener("touchend", (e) => {
+      e.preventDefault();
+      onPress();
+    });
     document.body.appendChild(btn);
     this.domScanBtn = btn;
     this.scanBtnLabel = label;
@@ -566,7 +571,7 @@ export class HUDSystem extends createSystem({}) {
       "bottom:calc(36px + env(safe-area-inset-bottom, 0px))",
       "left:50%",
       "transform:translateX(-50%)",
-      "display:none",           // shown only in collect mode
+      "display:none", // shown only in collect mode
       "align-items:center",
       "gap:0px",
       // z-index 14: above collect overlay (12), below Three.js canvas (15)
@@ -586,7 +591,10 @@ export class HUDSystem extends createSystem({}) {
       "box-sizing:border-box",
     ].join(";");
 
-    const zapIcon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    const zapIcon = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "svg",
+    );
     zapIcon.setAttribute("viewBox", "0 0 24 24");
     zapIcon.setAttribute("width", "22");
     zapIcon.setAttribute("height", "22");
@@ -596,7 +604,8 @@ export class HUDSystem extends createSystem({}) {
     zapIcon.setAttribute("stroke-linecap", "round");
     zapIcon.setAttribute("stroke-linejoin", "round");
     zapIcon.style.cssText = "flex-shrink:0";
-    zapIcon.innerHTML = '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>';
+    zapIcon.innerHTML =
+      '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>';
     pill.appendChild(zapIcon);
 
     // Fill track — takes remaining width inside the pill
@@ -631,7 +640,7 @@ export class HUDSystem extends createSystem({}) {
       "height:26px",
       "border-radius:3px",
       "flex-shrink:0",
-      "margin-left:-2px",  // overlap slightly so borders kiss
+      "margin-left:-2px", // overlap slightly so borders kiss
     ].join(";");
 
     wrapper.appendChild(pill);
@@ -668,9 +677,12 @@ export class HUDSystem extends createSystem({}) {
       this.energyMeterFillEl.style.transition = "none";
       this.energyMeterFillEl.style.width = `${(this.accumulatedScore / 800) * 100}%`;
       // Double rAF: first lets browser paint the element, second re-arms transition
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        if (this.energyMeterFillEl) this.energyMeterFillEl.style.transition = "width 1s ease-out";
-      }));
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          if (this.energyMeterFillEl)
+            this.energyMeterFillEl.style.transition = "width 1s ease-out";
+        }),
+      );
     }
 
     // Pause timer and camera feed
@@ -706,7 +718,13 @@ export class HUDSystem extends createSystem({}) {
     const ndc = new Vector2();
 
     const onPointerDown = (e: PointerEvent): void => {
-      if (!this.inCollectMode || !this.ballShowing || !this.ballMesh || this.ballConsumed) return;
+      if (
+        !this.inCollectMode ||
+        !this.ballShowing ||
+        !this.ballMesh ||
+        this.ballConsumed
+      )
+        return;
       ndc.set(
         (e.clientX / window.innerWidth) * 2 - 1,
         -(e.clientY / window.innerHeight) * 2 + 1,
@@ -720,13 +738,20 @@ export class HUDSystem extends createSystem({}) {
     };
 
     const onPointerMove = (e: PointerEvent): void => {
-      if (!this.isDraggingBall || e.pointerId !== capturedPointerId || !this.ballMesh) return;
+      if (
+        !this.isDraggingBall ||
+        e.pointerId !== capturedPointerId ||
+        !this.ballMesh
+      )
+        return;
       ndc.set(
         (e.clientX / window.innerWidth) * 2 - 1,
         -(e.clientY / window.innerHeight) * 2 + 1,
       );
       this._dragRaycaster.setFromCamera(ndc, this.world.camera);
-      if (this._dragRaycaster.ray.intersectPlane(this._dragPlane, this._dragHit)) {
+      if (
+        this._dragRaycaster.ray.intersectPlane(this._dragPlane, this._dragHit)
+      ) {
         // Y-axis only — X stays locked at centre
         this.ballMesh.position.y = this._dragHit.y;
       }
@@ -775,10 +800,12 @@ export class HUDSystem extends createSystem({}) {
   private checkMeterGlow(): void {
     if (!this.ballMesh || !this.energyMeterEl) return;
     this._ballScreenPos.copy(this.ballMesh.position).project(this.world.camera);
-    const sx = (this._ballScreenPos.x + 1) / 2 * window.innerWidth;
-    const sy = -(this._ballScreenPos.y - 1) / 2 * window.innerHeight;
+    const sx = ((this._ballScreenPos.x + 1) / 2) * window.innerWidth;
+    const sy = (-(this._ballScreenPos.y - 1) / 2) * window.innerHeight;
     const r = this.energyMeterEl.getBoundingClientRect();
-    this.setMeterGlow(sx >= r.left && sx <= r.right && sy >= r.top && sy <= r.bottom);
+    this.setMeterGlow(
+      sx >= r.left && sx <= r.right && sy >= r.top && sy <= r.bottom,
+    );
   }
 
   private fillMeter(score: number): void {
@@ -786,12 +813,15 @@ export class HUDSystem extends createSystem({}) {
     this.accumulatedScore = Math.min(this.accumulatedScore + score, 800);
     const pct = (this.accumulatedScore / 800) * 100;
     requestAnimationFrame(() => {
-      if (this.energyMeterFillEl) this.energyMeterFillEl.style.width = `${pct}%`;
+      if (this.energyMeterFillEl)
+        this.energyMeterFillEl.style.width = `${pct}%`;
     });
     if (this.accumulatedScore >= 800) {
       // Wait for the 1 s fill animation to finish, then show results
       setTimeout(() => {
-        (this.world.getSystem(FlowSystem) as FlowSystem).showResults(this.accumulatedScore);
+        (this.world.getSystem(FlowSystem) as FlowSystem).showResults(
+          this.accumulatedScore,
+        );
       }, 1200);
     }
   }
@@ -872,12 +902,19 @@ export class HUDSystem extends createSystem({}) {
       this.updateTimer(timeLeft);
       if (timeLeft === 0) {
         this.timerRunning = false;
-        (this.world.getSystem(FlowSystem) as FlowSystem).showResults(this.accumulatedScore);
+        (this.world.getSystem(FlowSystem) as FlowSystem).showResults(
+          this.accumulatedScore,
+        );
       }
     }
 
     // Ball float animation — only in result state, not during collect/drag
-    if (this.ballShowing && this.ballMesh && !this.isDraggingBall && !this.inCollectMode) {
+    if (
+      this.ballShowing &&
+      this.ballMesh &&
+      !this.isDraggingBall &&
+      !this.inCollectMode
+    ) {
       this.ballMesh.position.y = this.ballBaseY + Math.sin(time * 1.4) * 0.06;
       this.ballMesh.rotation.y = time * 0.4;
     }
@@ -938,7 +975,9 @@ export class HUDSystem extends createSystem({}) {
           }
           if (this.reasoningEl) {
             this.reasoningEl.textContent = ScanData.reasoning;
-            this.reasoningEl.style.display = ScanData.reasoning ? "block" : "none";
+            this.reasoningEl.style.display = ScanData.reasoning
+              ? "block"
+              : "none";
           }
         } else {
           if (this.scoreEl) this.scoreEl.textContent = "0 / 100";
@@ -953,7 +992,9 @@ export class HUDSystem extends createSystem({}) {
         this.shouldCollect = effectiveScore > 30;
         if (this.domScanBtn) {
           if (this.scanBtnLabel)
-            this.scanBtnLabel.textContent = this.shouldCollect ? "COLLECT" : "SCAN\nAGAIN";
+            this.scanBtnLabel.textContent = this.shouldCollect
+              ? "COLLECT"
+              : "SCAN\nAGAIN";
           this.domScanBtn.disabled = false;
           this.domScanBtn.style.opacity = "1";
           this.domScanBtn.style.display = "grid";

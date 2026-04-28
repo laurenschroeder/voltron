@@ -15,7 +15,7 @@ import { ObjectDetectionData } from "./objectDetection.js";
 /** Shared flag — ToolbarSystem reads this to lock itself during collect mode. */
 export let collectModeActive = false;
 
-const TIMER_DURATION = 3 * 60; // seconds
+const TIMER_DURATION = 30; // seconds (testing)
 const TIMER_RADIUS = 32;
 const TIMER_CIRCUMFERENCE = 2 * Math.PI * TIMER_RADIUS; // ≈ 201.06
 
@@ -962,31 +962,25 @@ export class HUDSystem extends createSystem({}) {
       case "result": {
         if (this.promptEl) this.promptEl.style.display = "none";
 
-        // TF.js / Gemini object detection result
         const { matched, confidence } = ObjectDetectionData;
-        // Ball threshold uses the displayed score — no match always shows 0/100
-        const effectiveScore = matched ? confidence : 0;
+        // Use object detection confidence if available, else electricity score
+        const effectiveScore = matched ? confidence : ScanData.score;
+
+        if (this.scoreEl) this.scoreEl.textContent = `${effectiveScore} / 100`;
+
         if (matched) {
-          if (this.scoreEl) this.scoreEl.textContent = `${confidence} / 100`;
           if (this.detectionEl) {
             this.detectionEl.textContent = matched;
             this.detectionEl.style.color = "#48F9FF";
             this.detectionEl.style.display = "block";
           }
-          if (this.reasoningEl) {
-            this.reasoningEl.textContent = ScanData.reasoning;
-            this.reasoningEl.style.display = ScanData.reasoning
-              ? "block"
-              : "none";
-          }
         } else {
-          if (this.scoreEl) this.scoreEl.textContent = "0 / 100";
-          if (this.detectionEl) {
-            this.detectionEl.textContent = "No match";
-            this.detectionEl.style.color = "rgba(255,255,255,0.5)";
-            this.detectionEl.style.display = "block";
-          }
-          if (this.reasoningEl) this.reasoningEl.style.display = "none";
+          if (this.detectionEl) this.detectionEl.style.display = "none";
+        }
+
+        if (this.reasoningEl) {
+          this.reasoningEl.textContent = ScanData.reasoning;
+          this.reasoningEl.style.display = ScanData.reasoning ? "block" : "none";
         }
         // Button label: COLLECT when score qualifies, SCAN AGAIN otherwise
         this.shouldCollect = effectiveScore > 30;

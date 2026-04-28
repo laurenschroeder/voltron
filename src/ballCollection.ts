@@ -19,6 +19,9 @@ import {
 
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
+import { scanPlugins } from "./scanner.js";
+import { FlowState } from "./flow.js";
+
 
 // ─── Shared spark texture ────────────────────────────────────────────────────
 // Loaded once at module init; all spark sprites share this single texture.
@@ -218,6 +221,14 @@ export class BallCollectionSystem extends createSystem({
     this.spawnBall();
   });
 
+    // Real integration with scanner: register a plugin that runs
+  // after every scan. The plugin spawns a ball regardless of scan score.
+  // (Later, we could make this conditional on score >= some threshold.)
+  scanPlugins.push(async (_base64, _canvas) => {
+    console.log("[BallCollectionSystem] scan plugin fired — spawning ball");
+    this.spawnBall();
+  });
+
     // ── Auto-spawn ────────────────────────────────────────────────────
   // Spawns a ball whenever there isn't one alive. Re-checks every 1s.
   // Includes a small cooldown after collection so it doesn't feel spammy.
@@ -345,6 +356,8 @@ private spawnBall(): void {
   console.log(
     `[BallCollectionSystem] ${rarity.name} ball spawned (+${rarity.value} pts) at (${spawnPos.x.toFixed(2)}, ${spawnPos.y.toFixed(2)}, ${spawnPos.z.toFixed(2)})`
   );
+
+  
 }
 
 
@@ -486,10 +499,12 @@ update(delta: number): void {
       const haloMat = halo.material as MeshBasicMaterial;
       haloMat.opacity = 0.3 * (1 - t);
 
-      // Animation done
+      //Animation done
       if (collectAge >= COLLECT_DURATION) {
         entity.dispose();
       }
+
+      
     }
   }
 
@@ -603,9 +618,7 @@ function createDebugButton(): void {
   document.body.appendChild(btn);
 }
 
-// ─── Score display ───────────────────────────────────────────────────────────
-// Tiny on-screen score counter so we can see points go up without the console.
-// Polls BallScore.total a few times per second; cheap and avoids signal wiring.
+
 
 // ─── Energy meter (replaces simple score text) ───────────────────────────────
 // Shows a vertical bar that fills as score climbs toward the next reward
@@ -637,6 +650,7 @@ function createScoreDisplay(): void {
     "overflow:hidden",
     "user-select:none",
     "pointer-events:none",
+    "display:none",   
   ].join(";");
 
   const fill = document.createElement("div");
@@ -667,6 +681,7 @@ function createScoreDisplay(): void {
     "z-index:9999",
     "user-select:none",
     "pointer-events:none",
+    "display:none",   
   ].join(";");
   label.textContent = "⚡ 0";
   document.body.appendChild(label);
@@ -677,11 +692,15 @@ function createScoreDisplay(): void {
   _meterContainerEl = container;
 
   // Update 4x per second
-  setInterval(() => {
+    setInterval(() => {
+    // Hide meter outside the game state
+    const inGame = FlowState.screen === "game";
+    container.style.display = inGame ? "block" : "none";
+    label.style.display = inGame ? "block" : "none";
+    if (!inGame) return;
+
     const next = getNextRewardTier();
     if (next) {
-      // Show progress toward next reward
-      // Calculate base of current tier (last threshold or 0)
       const earnedIdx = RewardState.highestEarned;
       const baseScore = earnedIdx >= 0 ? REWARD_TIERS[earnedIdx].threshold : 0;
       const progress = BallScore.total - baseScore;
@@ -690,7 +709,6 @@ function createScoreDisplay(): void {
       fill.style.height = `${pct}%`;
       label.textContent = `⚡ ${BallScore.total} → ${next.emoji}`;
     } else {
-      // All rewards earned, show full meter
       fill.style.height = "100%";
       label.textContent = `⚡ ${BallScore.total} ⭐`;
     }

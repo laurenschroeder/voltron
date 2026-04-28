@@ -12,6 +12,7 @@
     opacity: 0.95;
   }
   #instructions-text {
+    font-family: sourceCodePro;
     font-size: 4.5;
     color: #fafafa;
     text-align: center;
@@ -19,5 +20,5 @@
   }
 </style>
 <div class="container">
-  <span id="instructions-text">Here are the instructions for the game</span>
+  <span id="instructions-text"></span>
 </div>

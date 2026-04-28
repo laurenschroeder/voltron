@@ -272,13 +272,13 @@ export function initObjectDetectionOverlay(): void {
   const label = document.createElement("span");
   label.textContent = "OBJECT";
   label.style.cssText =
-    "display:block;font-size:9px;font-weight:bold;color:#71717a;margin-bottom:4px;letter-spacing:0.05em";
+    "display:block;font-family:'Orbitron',sans-serif;font-size:9px;font-weight:bold;color:#71717a;margin-bottom:4px;letter-spacing:0.05em";
 
   _overlayText = document.createElement("span");
-  _overlayText.style.cssText = "display:block;font-size:13px;font-weight:bold;color:#ffd700";
+  _overlayText.style.cssText = "display:block;font-family:'Orbitron',sans-serif;font-size:13px;font-weight:bold;color:#ffd700";
 
   _overlayEngine = document.createElement("span");
-  _overlayEngine.style.cssText = "display:block;font-size:9px;color:#71717a;margin-top:2px";
+  _overlayEngine.style.cssText = "display:block;font-family:'Rajdhani',sans-serif;font-size:9px;color:#71717a;margin-top:2px";
 
   _overlay.appendChild(label);
   _overlay.appendChild(_overlayText);

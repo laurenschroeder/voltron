@@ -21,11 +21,13 @@
     cursor: pointer;
   }
   #start-label {
+    font-family: sourceCodePro;
     font-size: 6;
     font-weight: bold;
     color: #ffffff;
   }
   #cursor {
+    font-family: sourceCodePro;
     font-size: 6;
     font-weight: bold;
     color: #ffffff;

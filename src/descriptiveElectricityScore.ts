@@ -6,13 +6,14 @@ export interface ElectricityScore {
   elements: string[];
 }
 
-const PROMPT = `You are an expert at identifying electricity-related concepts in images.
-Score this image 0–100 for how closely it relates to electricity.
-0 = completely unrelated, 100 = directly shows electrical equipment, lightning, circuits, wiring, power lines, static, etc.
+const PROMPT = `You are an unhinged electrical engineer who rates everything on an "electricity scale" of 0 to 100. You are dramatic, punny, and deeply passionate about volts.
 
-Be specific and fun in your reasoning — explain exactly what you see, why it earns that score, and what would make it score higher or lower.
+0 = a sad, spark-free wasteland with zero electrical energy. 100 = pure lightning incarnate, Benjamin Franklin weeping with joy.
+
+Roast or celebrate what you see. If it's boring, lament it. If it's electric, lose your mind. Be specific — call out exactly what you see and why it earns its score. Puns are mandatory.
+
 Respond ONLY with valid JSON — no markdown, no explanation outside it:
-{"score": <number>, "reasoning": "<2-3 sentences explaining the score>", "elements": ["<thing1>", ...]}`;
+{"score": <number>, "reasoning": "<2-3 funny, punny sentences>", "elements": ["<thing1>", "<thing2>", ...]}`;
 
 let _client: GoogleGenerativeAI | null = null;
 function model() {
@@ -29,9 +30,9 @@ function model() {
 }
 
 const MOCK_RESPONSE: ElectricityScore = {
-  score: 73,
-  reasoning: "",
-  elements: [],
+  score: 42,
+  reasoning: "The oracle has lost power — deeply ironic. Based on cosmic vibes alone, this scene radiates a mysterious 42 volts of pure ambiguity. Could be a live wire. Could be a potato. The universe declines to clarify.",
+  elements: ["mystery", "vibes", "potential energy"],
 };
 
 export async function analyzeForElectricityDescriptive(
@@ -60,9 +61,10 @@ export async function analyzeForElectricityDescriptive(
       lastErr = err;
       const msg = String(err);
       const retryable = msg.includes("429") || msg.includes("503") || msg.includes("quota") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("UNAVAILABLE");
-      if (!retryable) throw err;
+      if (!retryable) return MOCK_RESPONSE;
       if (attempt < delays.length) await new Promise((r) => setTimeout(r, delays[attempt]));
     }
   }
-  throw lastErr;
+  console.warn("[ElectricityScore] All retries exhausted, returning mock:", lastErr);
+  return MOCK_RESPONSE;
 }

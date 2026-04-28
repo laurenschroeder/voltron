@@ -8,5 +8,5 @@ function readMockFlag(): boolean {
 
 export const USE_MOCK = readMockFlag();          // true → skip Gemini, return mock response
 export const DESCRIPTIVE_ENABLED = true;
-export const OBJECT_DETECTION_ENABLED = false;
+export const OBJECT_DETECTION_ENABLED = true;
 export const OBJECT_DETECTION_GEMINI_ENABLED = false; // set false to force TF.js only

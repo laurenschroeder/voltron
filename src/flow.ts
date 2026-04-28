@@ -1,5 +1,5 @@
 import { createSystem, VisibilityState } from "@iwsdk/core";
-import { startCamera, pauseCamera, resumeCamera } from "./scanner.js";
+import { startCamera, pauseCamera, resumeCamera, ScanData } from "./scanner.js";
 
 // ─── App screen state (read by HUDSystem) ─────────────────────────────────────
 
@@ -24,6 +24,7 @@ export class FlowSystem extends createSystem({}) {
   // Results screen
   private resultsEl: HTMLDivElement | null = null;
   private resultsTotalScoreEl: HTMLSpanElement | null = null;
+  private resultsReasoningEl: HTMLParagraphElement | null = null;
   private cardInnerEl: HTMLDivElement | null = null;
   private cardFrontEl: HTMLDivElement | null = null;
   private cardBackEl: HTMLDivElement | null = null;
@@ -436,6 +437,20 @@ export class FlowSystem extends createSystem({}) {
     results.appendChild(scoreNum);
     this.resultsTotalScoreEl = scoreNum;
 
+    // ── Last scan reasoning ───────────────────────────────────────────────
+    const reasoningEl = document.createElement("p");
+    reasoningEl.style.cssText = [
+      "font-family:'Space Mono',monospace",
+      "font-size:13px",
+      "color:rgba(255,255,255,0.8)",
+      "text-align:center",
+      "margin:0",
+      "line-height:1.6",
+      "padding:0 8px",
+    ].join(";");
+    results.appendChild(reasoningEl);
+    this.resultsReasoningEl = reasoningEl;
+
     // ── Coupon card ───────────────────────────────────────────────────────
     // Outer = perspective container only (no border here — it would not flip)
     const cardOuter = document.createElement("div");
@@ -672,7 +687,8 @@ export class FlowSystem extends createSystem({}) {
     if (this.cardFrontEl) this.cardFrontEl.style.display = "flex";
     if (this.cardBackEl)  this.cardBackEl.style.display  = "none";
     if (this.newGameBtnOuterEl) this.newGameBtnOuterEl.style.display = "none";
-    if (this.resultsTotalScoreEl) this.resultsTotalScoreEl.textContent = String(score);
+    if (this.resultsTotalScoreEl) this.resultsTotalScoreEl.textContent = String(ScanData.score || score);
+    if (this.resultsReasoningEl) this.resultsReasoningEl.textContent = ScanData.reasoning;
     if (this.resultsEl) this.resultsEl.style.display = "flex";
   }
 

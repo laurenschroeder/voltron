@@ -30,9 +30,11 @@
 
         var v = document.createElement('video');
         v.muted = true;
+        v.autoplay = true;
         v.playsInline = true;
         v.setAttribute('playsinline', '');
         v.setAttribute('webkit-playsinline', '');
+        v.setAttribute('preload', 'auto');
         v.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain';
         v.src = '/zoomies-mov/Logo-animation-Test1.mp4';
         o.appendChild(v);
@@ -46,11 +48,19 @@
           if (window._onVideoSplashDone) window._onVideoSplashDone();
         }
 
+        function tryPlay() {
+          v.play().then(function() { v.muted = false; }).catch(function() {});
+        }
+
         v.addEventListener('ended', done);
         v.addEventListener('error', done);
         setTimeout(done, 6000);
 
-        v.play().then(function() { v.muted = false; }).catch(function() {});
+        if (v.readyState >= 3) {
+          tryPlay();
+        } else {
+          v.addEventListener('canplay', tryPlay);
+        }
       })();
     </script>
     <div id="scene-container"></div>

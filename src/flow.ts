@@ -186,16 +186,17 @@ export class FlowSystem extends createSystem({}) {
     instructionsHeadline.textContent = "GAME INSTRUCTIONS";
     instructionsHeadline.style.cssText = [
       "position:fixed",
-      "top:15%",
+      "top:max(8%, env(safe-area-inset-top, 0px))",
       "left:0",
       "width:100%",
       "font-family:'Space Mono',monospace",
-      "font-size:7vw",
+      "font-size:clamp(22px, 7vw, 36px)",
       "font-weight:500",
       "color:#ffffff",
       "text-align:center",
       "letter-spacing:0.05em",
-      "z-index:18",
+      "text-shadow:0 1px 8px rgba(0,0,0,0.8)",
+      "z-index:19",
       "display:none",
     ].join(";");
     document.body.appendChild(instructionsHeadline);
@@ -249,10 +250,12 @@ export class FlowSystem extends createSystem({}) {
       stepText.textContent = text;
       stepText.style.cssText = [
         "font-family:'Space Mono',monospace",
-        "font-size:14px",
+        "font-size:clamp(12px, 3.4vw, 15px)",
         "color:#ffffff",
-        "line-height:1.5",
+        "line-height:1.45",
         "margin:0",
+        "text-shadow:0 1px 6px rgba(0,0,0,0.85)",
+        "flex:1",
       ].join(";");
 
       row.appendChild(circleOuter);
@@ -263,13 +266,13 @@ export class FlowSystem extends createSystem({}) {
     const stepsContainer = document.createElement("div");
     stepsContainer.style.cssText = [
       "position:fixed",
-      "top:calc(15% + 10vw + 16px)",
-      "left:40px",
-      "right:40px",
+      "top:calc(max(8%, env(safe-area-inset-top, 0px)) + clamp(28px, 9vw, 44px) + 12px)",
+      "left:clamp(16px, 6vw, 40px)",
+      "right:clamp(16px, 6vw, 40px)",
       "display:none",
       "flex-direction:column",
-      "gap:20px",
-      "z-index:18",
+      "gap:clamp(10px, 2.2vh, 20px)",
+      "z-index:19",
     ].join(";");
 
     stepsContainer.appendChild(makeStep("1",
@@ -334,16 +337,17 @@ export class FlowSystem extends createSystem({}) {
     document.body.appendChild(stepsContainer);
     this.instructionsSteps = stepsContainer;
 
-    // ── Key visual (bottom 1/3 of viewport) ──────────────────────────────
+    // ── Key visual (bottom of viewport — sits below text so steps remain
+    // legible when they overlap on shorter screens like iPhone 13). ──────
     const keyVis = document.createElement("div");
     keyVis.style.cssText = [
       "position:fixed",
       "bottom:0",
       "left:0",
       "right:0",
-      "height:33.333vh",
+      "height:clamp(160px, 28vh, 280px)",
       "display:none",
-      "z-index:18",
+      "z-index:17",
       "overflow:hidden",
     ].join(";");
     const keyVisImg = document.createElement("img");
@@ -356,6 +360,19 @@ export class FlowSystem extends createSystem({}) {
       "display:block",
     ].join(";");
     keyVis.appendChild(keyVisImg);
+    // Fade the top edge of the image to black so any overlapping text from
+    // the steps above stays readable.
+    const keyVisFade = document.createElement("div");
+    keyVisFade.style.cssText = [
+      "position:absolute",
+      "top:0",
+      "left:0",
+      "right:0",
+      "height:60%",
+      "background:linear-gradient(180deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.45) 50%, rgba(0,0,0,0) 100%)",
+      "pointer-events:none",
+    ].join(";");
+    keyVis.appendChild(keyVisFade);
     document.body.appendChild(keyVis);
     this.instructionsKeyVis = keyVis;
 
@@ -684,10 +701,20 @@ export class FlowSystem extends createSystem({}) {
     pauseCamera();
     if (this.playBtnEl) this.playBtnEl.textContent = "RETURN";
     if (this.helpBgEl) this.helpBgEl.style.display = "block";
-    // Raise instruction elements above HUD (z-index:20) when shown during gameplay
-    [this.instructionsHeadline, this.instructionsSteps, this.instructionsKeyVis].forEach(
-      (el) => { if (el) { el.style.display = el === this.instructionsSteps ? "flex" : "block"; el.style.zIndex = "22"; } }
-    );
+    // Raise instruction elements above HUD (z-index:20) and helpBg (z-index:21).
+    // Keep keyVis below text so the steps remain legible if they overlap.
+    if (this.instructionsKeyVis) {
+      this.instructionsKeyVis.style.display = "block";
+      this.instructionsKeyVis.style.zIndex = "22";
+    }
+    if (this.instructionsHeadline) {
+      this.instructionsHeadline.style.display = "block";
+      this.instructionsHeadline.style.zIndex = "23";
+    }
+    if (this.instructionsSteps) {
+      this.instructionsSteps.style.display = "flex";
+      this.instructionsSteps.style.zIndex = "23";
+    }
   }
 
   hideInstructionsFromHelp(): void {
@@ -696,9 +723,18 @@ export class FlowSystem extends createSystem({}) {
     resumeCamera();
     if (this.playBtnEl) this.playBtnEl.textContent = "PLAY";
     if (this.helpBgEl) this.helpBgEl.style.display = "none";
-    [this.instructionsHeadline, this.instructionsSteps, this.instructionsKeyVis].forEach(
-      (el) => { if (el) { el.style.display = "none"; el.style.zIndex = "18"; } }
-    );
+    if (this.instructionsKeyVis) {
+      this.instructionsKeyVis.style.display = "none";
+      this.instructionsKeyVis.style.zIndex = "17";
+    }
+    if (this.instructionsHeadline) {
+      this.instructionsHeadline.style.display = "none";
+      this.instructionsHeadline.style.zIndex = "19";
+    }
+    if (this.instructionsSteps) {
+      this.instructionsSteps.style.display = "none";
+      this.instructionsSteps.style.zIndex = "19";
+    }
   }
 
   private transitionToInstructions(): void {

@@ -1,4 +1,4 @@
-# Voltron Vert
+# Voltron Vert :zap::zap:
 
 Voltron Vert is an XR hackathon game where players scan their surroundings, find energy sources, and collect energy balls before time runs out. Explore the scene, react quickly, and build up your score through fast object detection and collection.
 

@@ -28,11 +28,21 @@
           return;
         }
 
+        var debug = new URLSearchParams(location.search).get('vdebug') === '1';
+        function log(msg) {
+          if (debug) console.log('[splash]', msg);
+        }
+
         var v = document.createElement('video');
         v.muted = true;
+        v.autoplay = true;
+        v.defaultMuted = true;
         v.playsInline = true;
+        v.setAttribute('muted', '');
+        v.setAttribute('autoplay', '');
         v.setAttribute('playsinline', '');
         v.setAttribute('webkit-playsinline', '');
+        v.setAttribute('preload', 'auto');
         v.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain';
         v.src = '/zoomies-mov/Logo-animation-Test1.mp4';
         o.appendChild(v);
@@ -46,11 +56,33 @@
           if (window._onVideoSplashDone) window._onVideoSplashDone();
         }
 
+        var played = false;
+        function tryPlay(reason) {
+          if (played) return;
+          log('tryPlay ' + reason + ' readyState=' + v.readyState + ' networkState=' + v.networkState);
+          var p = v.play();
+          if (p && p.then) {
+            p.then(function() {
+              played = true;
+              log('play() resolved');
+              v.muted = false;
+            }).catch(function(err) {
+              log('play() rejected: ' + (err && err.name) + ' ' + (err && err.message));
+            });
+          }
+        }
+
+        ['loadstart','loadedmetadata','loadeddata','canplay','canplaythrough','playing','stalled','suspend','waiting'].forEach(function(ev) {
+          v.addEventListener(ev, function() { log(ev + ' rs=' + v.readyState); if (ev === 'canplay' || ev === 'loadeddata' || ev === 'canplaythrough') tryPlay(ev); });
+        });
+        v.addEventListener('error', function() {
+          log('error code=' + (v.error && v.error.code) + ' msg=' + (v.error && v.error.message));
+          done();
+        });
         v.addEventListener('ended', done);
-        v.addEventListener('error', done);
         setTimeout(done, 6000);
 
-        v.play().then(function() { v.muted = false; }).catch(function() {});
+        tryPlay('immediate');
       })();
     </script>
     <div id="scene-container"></div>

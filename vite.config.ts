@@ -1,10 +1,11 @@
 import { iwsdkDev } from "@iwsdk/vite-plugin-dev";
 
+import basicSsl from "@vitejs/plugin-basic-ssl";
 import { compileUIKit } from "@iwsdk/vite-plugin-uikitml";
+import { execSync } from "node:child_process";
 import { isIPv4 } from "node:net";
 import os from "node:os";
 import { defineConfig } from "vite";
-import mkcert from "vite-plugin-mkcert";
 
 /** First LAN IPv4, or override with DEV_HOST=192.168.x.x for mobile browser testing. */
 function devHostForLan(): string {
@@ -21,8 +22,20 @@ function devHostForLan(): string {
   return "localhost";
 }
 
+/** Mac's mDNS .local name (e.g. "Suvis-MacBook-Air.local"), if discoverable. */
+function localMdnsName(): string | null {
+  try {
+    const name = execSync("scutil --get LocalHostName", { encoding: "utf8" }).trim();
+    return name ? `${name}.local` : null;
+  } catch {
+    return null;
+  }
+}
+
 const devPort = 8081;
 const devHost = devHostForLan();
+const mdnsHost = localMdnsName();
+const certDomains = [devHost, "localhost", ...(mdnsHost ? [mdnsHost] : [])];
 
 // Stamp each server start so the client can tell "restart" from "reload"
 const serverBootId = Date.now().toString(36);
@@ -37,7 +50,7 @@ function bootIdPlugin() {
 
 export default defineConfig({
   plugins: [
-    mkcert(),
+    basicSsl({ domains: certDomains }),
     iwsdkDev({
       emulator: {
         device: "metaQuest3",
@@ -53,14 +66,16 @@ export default defineConfig({
     host: "0.0.0.0",
     port: devPort,
     open: false,
-    // Mobile: open https://<this-machine-LAN-IP>:8081 (same Wi‑Fi). Install mkcert root CA on the phone
-    // (run `mkcert -CAROOT`, copy rootCA.pem) or the browser will warn / block camera & XR.
+    // Mobile: open https://<this-machine-LAN-IP>:8081 on the same Wi‑Fi. The cert is self-signed,
+    // so Safari shows a "not private" warning — tap Show Details → Visit Website to proceed.
+    // Camera/WebXR still work after accepting the warning.
     hmr: {
       protocol: "wss",
       host: devHost,
       port: devPort,
       clientPort: devPort,
     },
+    allowedHosts: true,
   },
   build: {
     outDir: "dist",

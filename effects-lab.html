@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Energy Ball Effects Lab</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #111; overflow: hidden; }
+    canvas { display: block; }
+    #info {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      color: #aaa;
+      font-family: monospace;
+      font-size: 13px;
+      pointer-events: none;
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="info">Energy Ball Effects Lab — orbit: drag · zoom: scroll · pan: right-drag</div>
+  <script type="module" src="/src/effects-lab/main.ts"></script>
+</body>
+</html>

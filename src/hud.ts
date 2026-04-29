@@ -2,12 +2,29 @@ import {
   createSystem,
   Mesh,
   MeshBasicMaterial,
+  MeshPhysicalMaterial,
   SphereGeometry,
+  Group,
   Raycaster,
   Plane,
   Vector2,
   Vector3,
+  TextureLoader,
+  RepeatWrapping,
+  ClampToEdgeWrapping,
+  DoubleSide,
+  DirectionalLight,
+  AmbientLight,
+  PointLight,
+  AdditiveBlending,
+  PMREMGenerator,
+  Scene,
+  Color,
+  PlaneGeometry,
+  Box3,
 } from "@iwsdk/core";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { LightningStrike } from "./effects-lab/lib/LightningStrike.js";
 import { FlowState, FlowSystem } from "./flow.js";
 import { ScanData, triggerScan, pauseCamera, resumeCamera } from "./scanner.js";
 import { ObjectDetectionData } from "./objectDetection.js";
@@ -31,6 +48,7 @@ export class HUDSystem extends createSystem({}) {
   // Scan panel (left side of container)
   private scoreEl: HTMLSpanElement | null = null;
   private detectionEl: HTMLSpanElement | null = null;
+  private tagsEl: HTMLSpanElement | null = null;
   private reasoningEl: HTMLSpanElement | null = null;
   private promptEl: HTMLSpanElement | null = null;
 
@@ -39,9 +57,31 @@ export class HUDSystem extends createSystem({}) {
   private panelBubbleGrad: SVGLinearGradientElement | null = null;
   private panelBlurDiv: HTMLDivElement | null = null;
 
-  // 3D reward ball — shown when score > 30
-  private ballMesh: Mesh | null = null;
+  // 3D reward balls — ball2 (score 30-60), ball3 (score > 60)
+  private ballMesh: Group | null = null;
+  private ballGreen: Group | null = null;
+  private ballTeal: Group | null = null;
+  private ballPurple: Group | null = null;
   private ballShowing = false;
+  // Tesla arcs per ball
+  private greenArcs: { strike: LightningStrike; mesh: Mesh }[] = [];
+  private tealArcs: { strike: LightningStrike; mesh: Mesh }[] = [];
+  private purpleArcs: { strike: LightningStrike; mesh: Mesh }[] = [];
+  private greenRadius = 0.1;
+  private tealRadius = 0.1;
+  private purpleRadius = 0.1;
+  private greenCenter = new Vector3();
+  private tealCenter = new Vector3();
+  private purpleCenter = new Vector3();
+  private arcRespawnTimer = 0;
+  private greenPointLight: PointLight | null = null;
+  private purplePointLight: PointLight | null = null;
+  private bluePointLight: PointLight | null = null;
+  private ballFillLight: DirectionalLight | null = null;
+  private ballRimLight: DirectionalLight | null = null;
+  private greenAmbient: AmbientLight | null = null;
+  private purpleAmbient: AmbientLight | null = null;
+  private blueAmbient: AmbientLight | null = null;
   private ballBaseY = 1.5;
   private isDraggingBall = false;
   private meterGlowing = false;
@@ -104,7 +144,7 @@ export class HUDSystem extends createSystem({}) {
       /* Shared gradient-border mixin via ::before mask trick */
       .voltron-grad-border {
         position: relative;
-        background: #BC4AFF24;
+        background: #48325Bcc;
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
       }
@@ -157,7 +197,7 @@ export class HUDSystem extends createSystem({}) {
         width: 80px;
         height: 80px;
         border-radius: 9.5px;
-        background: #BC4AFF24;
+        background: #48325Bcc;
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
       }
@@ -257,7 +297,7 @@ export class HUDSystem extends createSystem({}) {
     svg.appendChild(defs);
 
     const pathEl = document.createElementNS(NS, "path");
-    pathEl.setAttribute("fill", "#BC4AFF24");
+    pathEl.setAttribute("fill", "#48325Bcc");
     pathEl.setAttribute("stroke", "url(#panelGrad)");
     pathEl.setAttribute("stroke-width", "2");
     svg.appendChild(pathEl);
@@ -324,7 +364,19 @@ export class HUDSystem extends createSystem({}) {
       "margin-bottom:1vw",
     ].join(";");
 
-    // Reasoning — shown between detection and snapshot when Gemini provides it
+    // Tags — elements array shown as inline tags
+    const tags = document.createElement("span");
+    tags.style.cssText = [
+      "display:none",
+      "font-family:'Space Mono',monospace",
+      "font-size:2.5vw",
+      "font-weight:700",
+      "color:#48F9FF",
+      "text-transform:uppercase",
+      "margin-top:1vw",
+    ].join(";");
+
+    // Reasoning — shown below tags
     const reasoning = document.createElement("span");
     reasoning.style.cssText = [
       "display:none",
@@ -365,6 +417,7 @@ export class HUDSystem extends createSystem({}) {
 
     content.appendChild(score);
     content.appendChild(detection);
+    content.appendChild(tags);
     content.appendChild(reasoning);
     content.appendChild(prompt);
     content.appendChild(collectInstruction);
@@ -375,6 +428,7 @@ export class HUDSystem extends createSystem({}) {
 
     this.scoreEl = score;
     this.detectionEl = detection;
+    this.tagsEl = tags;
     this.reasoningEl = reasoning;
     this.promptEl = prompt;
     this.collectInstructionEl = collectInstruction;
@@ -423,7 +477,7 @@ export class HUDSystem extends createSystem({}) {
     fill.setAttribute("cx", "36");
     fill.setAttribute("cy", "36");
     fill.setAttribute("r", String(TIMER_RADIUS - 3)); // 3 = half stroke-width
-    fill.setAttribute("fill", "#BC4AFF24");
+    fill.setAttribute("fill", "#48325Bcc");
     svg.appendChild(fill);
 
     // Track circle (faint)
@@ -662,6 +716,7 @@ export class HUDSystem extends createSystem({}) {
     // Panel: hide result content, show instruction
     if (this.scoreEl) this.scoreEl.style.display = "none";
     if (this.detectionEl) this.detectionEl.style.display = "none";
+    if (this.tagsEl) this.tagsEl.style.display = "none";
     if (this.reasoningEl) this.reasoningEl.style.display = "none";
     if (this.promptEl) this.promptEl.style.display = "none";
     if (this.collectInstructionEl)
@@ -732,6 +787,7 @@ export class HUDSystem extends createSystem({}) {
       this._dragRaycaster.setFromCamera(ndc, this.world.camera);
       if (this._dragRaycaster.intersectObject(this.ballMesh).length > 0) {
         this.isDraggingBall = true;
+        this.setArcsVisible(false);
         capturedPointerId = e.pointerId;
         canvas.setPointerCapture(e.pointerId);
       }
@@ -781,6 +837,7 @@ export class HUDSystem extends createSystem({}) {
 
       // Missed the meter — snap ball back so user can try again
       if (this.ballMesh) this.ballMesh.position.set(0, this.ballBaseY, -1.5);
+      this.setArcsVisible(true);
       this.setMeterGlow(false);
     };
 
@@ -826,6 +883,13 @@ export class HUDSystem extends createSystem({}) {
     }
   }
 
+  private setArcsVisible(visible: boolean): void {
+    const arcs = this.ballMesh === this.ballPurple ? this.purpleArcs
+      : this.ballMesh === this.ballTeal ? this.tealArcs
+      : this.greenArcs;
+    for (const a of arcs) a.mesh.visible = visible;
+  }
+
   private setMeterGlow(glow: boolean): void {
     if (glow === this.meterGlowing) return;
     this.meterGlowing = glow;
@@ -838,27 +902,305 @@ export class HUDSystem extends createSystem({}) {
 
   private setBallVisible(show: boolean, score = 0): void {
     this.ballShowing = show;
-    if (!this.ballMesh) return;
-    this.ballMesh.visible = show;
+    // Hide all balls and arcs first
+    if (this.ballGreen) this.ballGreen.visible = false;
+    if (this.ballTeal) this.ballTeal.visible = false;
+    if (this.ballPurple) this.ballPurple.visible = false;
+    for (const a of this.greenArcs) a.mesh.visible = false;
+    for (const a of this.tealArcs) a.mesh.visible = false;
+    for (const a of this.purpleArcs) a.mesh.visible = false;
+    if (this.greenPointLight) this.greenPointLight.visible = false;
+    if (this.purplePointLight) this.purplePointLight.visible = false;
+    if (this.bluePointLight) this.bluePointLight.visible = false;
+    if (this.greenAmbient) this.greenAmbient.visible = false;
+    if (this.purpleAmbient) this.purpleAmbient.visible = false;
+    if (this.blueAmbient) this.blueAmbient.visible = false;
+
     if (show) {
-      const color = score > 60 ? 0xbc4aff : 0x48f9ff;
-      (this.ballMesh.material as MeshBasicMaterial).color.setHex(color);
+      let arcs: { strike: LightningStrike; mesh: Mesh }[];
+      if (score > 60) {
+        this.ballMesh = this.ballPurple;
+        arcs = this.purpleArcs;
+        if (this.ballFillLight) this.ballFillLight.color.setHex(0x2266dd);
+        if (this.ballRimLight) this.ballRimLight.color.setHex(0x3377ee);
+        if (this.bluePointLight) this.bluePointLight.visible = true;
+        if (this.blueAmbient) this.blueAmbient.visible = true;
+      } else if (score > 30) {
+        this.ballMesh = this.ballTeal;
+        arcs = this.tealArcs;
+        if (this.purplePointLight) this.purplePointLight.visible = true;
+        if (this.ballFillLight) this.ballFillLight.color.setHex(0x8844cc);
+        if (this.ballRimLight) this.ballRimLight.color.setHex(0x6633aa);
+        if (this.purpleAmbient) this.purpleAmbient.visible = true;
+      } else {
+        this.ballMesh = this.ballGreen;
+        arcs = this.greenArcs;
+        if (this.ballFillLight) this.ballFillLight.color.setHex(0x88ff00);
+        if (this.ballRimLight) this.ballRimLight.color.setHex(0x66cc00);
+        if (this.greenPointLight) this.greenPointLight.visible = true;
+        if (this.greenAmbient) this.greenAmbient.visible = true;
+      }
+      if (this.ballMesh) this.ballMesh.position.set(0, this.ballBaseY, -1.5);
+      // Reset arc endpoints to ball center so they don't linger at old positions
+      const center = this.ballMesh === this.ballPurple ? this.purpleCenter
+        : this.ballMesh === this.ballTeal ? this.tealCenter
+        : this.greenCenter;
+      const radius = this.ballMesh === this.ballPurple ? this.purpleRadius
+        : this.ballMesh === this.ballTeal ? this.tealRadius
+        : this.greenRadius;
+      center.set(0, this.ballBaseY, -1.5);
+      for (const a of arcs) {
+        const theta1 = Math.random() * Math.PI * 2;
+        const phi1 = Math.acos(2 * Math.random() - 1);
+        a.strike.rayParameters.sourceOffset.set(
+          center.x + radius * 0.15 * Math.sin(phi1) * Math.cos(theta1),
+          center.y + radius * 0.15 * Math.sin(phi1) * Math.sin(theta1),
+          center.z + radius * 0.15 * Math.cos(phi1),
+        );
+        const theta2 = Math.random() * Math.PI * 2;
+        const phi2 = Math.acos(2 * Math.random() - 1);
+        a.strike.rayParameters.destOffset.set(
+          center.x + radius * Math.sin(phi2) * Math.cos(theta2),
+          center.y + radius * Math.sin(phi2) * Math.sin(theta2),
+          center.z + radius * Math.cos(phi2),
+        );
+        a.mesh.visible = true;
+      }
     }
+
+    if (this.ballMesh) this.ballMesh.visible = show;
   }
 
   private buildBall(): void {
-    const geo = new SphereGeometry(0.12, 32, 32);
-    const mat = new MeshBasicMaterial({
-      color: 0x48f9ff,
-      transparent: true,
-      opacity: 0.55,
+    // Add lights for the ball (scene has defaultLighting: false)
+    const ambient = new AmbientLight(0xffffff, 0.15);
+    const key = new DirectionalLight(0xffffff, 0.6);
+    key.position.set(2, 3, 2);
+    this.ballFillLight = new DirectionalLight(0xcccccc, 0.4);
+    this.ballFillLight.position.set(-2, 1, -1);
+    this.ballRimLight = new DirectionalLight(0xaaaaaa, 0.5);
+    this.ballRimLight.position.set(0, -1, -3);
+    [ambient, key, this.ballFillLight, this.ballRimLight].forEach((l) => {
+      this.world.scene.add(l);
     });
-    const mesh = new Mesh(geo, mat);
-    // Float 1.5 m in front of the initial camera, eye-height centred
-    mesh.position.set(0, this.ballBaseY, -1.5);
-    mesh.visible = false;
-    this.ballMesh = mesh;
-    this.world.createTransformEntity(mesh, this.world.sceneEntity);
+
+    // Env map for metallic reflections
+    const pmrem = new PMREMGenerator(this.world.renderer);
+    const envScene = new Scene();
+    envScene.background = new Color(0x555555);
+    const envKey = new DirectionalLight(0x666666, 3);
+    envKey.position.set(1, 2, 1);
+    envScene.add(envKey);
+    const envFill = new DirectionalLight(0x555555, 2);
+    envFill.position.set(-2, 0.5, -1);
+    envScene.add(envFill);
+    const envAccent = new DirectionalLight(0xffffff, 3);
+    envAccent.position.set(3, 1, 0.5);
+    envScene.add(envAccent);
+    const darkPanel = new Mesh(
+      new PlaneGeometry(10, 10),
+      new MeshBasicMaterial({ color: 0x111111 }),
+    );
+    darkPanel.position.set(0, 0, -5);
+    envScene.add(darkPanel);
+    envScene.add(new AmbientLight(0x444444, 0.5));
+    const envMap = pmrem.fromScene(envScene, 0.04).texture;
+    this.world.scene.environment = envMap;
+    pmrem.dispose();
+
+    const loader = new GLTFLoader();
+    const texLoader = new TextureLoader();
+
+    const metallic = texLoader.load("/textures/Metal_scratched_009_metallic.jpg");
+    const roughness = texLoader.load("/textures/Metal_scratched_009_roughness.jpg");
+    const normal = texLoader.load("/textures/Metal_scratched_009_normal.jpg");
+    const ao = texLoader.load("/textures/Metal_scratched_009_ambientOcclusion.jpg");
+
+    [metallic, roughness, ao].forEach((t) => {
+      t.wrapS = t.wrapT = ClampToEdgeWrapping;
+    });
+    normal.wrapS = normal.wrapT = RepeatWrapping;
+    normal.repeat.set(3, 3);
+
+    const scratchedMetal = new MeshPhysicalMaterial({
+      color: 0x888888,
+      metalnessMap: metallic,
+      roughnessMap: roughness,
+      normalMap: normal,
+      normalScale: new Vector2(1, -1),
+      aoMap: ao,
+      metalness: 1.0,
+      roughness: 1.0,
+      clearcoat: 0.5,
+      clearcoatRoughness: 0.1,
+      side: DoubleSide,
+      envMapIntensity: 1.0,
+    });
+
+    // Lightning bolt materials
+    const boltMat = new MeshBasicMaterial({
+      color: new Color(0.8, 1.5, 3.0),
+      transparent: true,
+      opacity: 1.0,
+      side: DoubleSide,
+      blending: AdditiveBlending,
+      depthWrite: false,
+    });
+
+    const boltCoreMat = new MeshBasicMaterial({
+      color: new Color(3.0, 3.0, 3.5),
+      transparent: true,
+      opacity: 1.0,
+      side: DoubleSide,
+      blending: AdditiveBlending,
+      depthWrite: false,
+    });
+
+    // Green bolt materials for ball1
+    const greenBoltMat = new MeshBasicMaterial({
+      color: new Color(0.8, 3.0, 0.6),
+      transparent: true,
+      opacity: 1.0,
+      side: DoubleSide,
+      blending: AdditiveBlending,
+      depthWrite: false,
+    });
+
+    const greenBoltCoreMat = new MeshBasicMaterial({
+      color: new Color(1.0, 3.5, 0.5),
+      transparent: true,
+      opacity: 1.0,
+      side: DoubleSide,
+      blending: AdditiveBlending,
+      depthWrite: false,
+    });
+
+    const randomOnSphere = (r: number, c: Vector3) => {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      return new Vector3(
+        c.x + r * Math.sin(phi) * Math.cos(theta),
+        c.y + r * Math.sin(phi) * Math.sin(theta),
+        c.z + r * Math.cos(phi),
+      );
+    };
+
+    const createArcs = (
+      center: Vector3,
+      radius: number,
+      count: number,
+      arcs: { strike: LightningStrike; mesh: Mesh }[],
+      matOuter: MeshBasicMaterial = boltMat,
+      matCore: MeshBasicMaterial = boltCoreMat,
+    ) => {
+      for (let i = 0; i < count; i++) {
+        const src = randomOnSphere(radius * 0.15, center);
+        const dst = randomOnSphere(radius * 1.0, center);
+        const strike = new LightningStrike({
+          sourceOffset: src,
+          destOffset: dst,
+          radius0: 0.002,
+          radius1: 0.0007,
+          minRadius: 0.0003,
+          maxIterations: 7,
+          isEternal: true,
+          timeScale: 0.7,
+          roughness: 0.85,
+          straightness: 0.6,
+          ramification: 3,
+          maxSubrayRecursion: 2,
+          recursionProbability: 0.4,
+          subrayPeriod: 1.5,
+          subrayDutyCycle: 0.5,
+          radius0Factor: 0.4,
+          radius1Factor: 0.15,
+        });
+        const mat = i % 3 === 0 ? matCore : matOuter;
+        const mesh = new Mesh(strike, mat);
+        mesh.visible = false;
+        this.world.scene.add(mesh);
+        arcs.push({ strike, mesh });
+      }
+    };
+
+    const setupModel = (model: Group, scale: number) => {
+      model.traverse((child) => {
+        if ((child as Mesh).isMesh) {
+          (child as Mesh).material = scratchedMetal;
+        }
+      });
+      model.scale.setScalar(scale);
+      model.position.set(0, this.ballBaseY, -1.5);
+      model.visible = false;
+      this.world.createTransformEntity(model, this.world.sceneEntity);
+    };
+
+    // Ball1 — green tier (score 10-30)
+    loader.load("/gltf/energyball1/ball1.glb", (gltf) => {
+      this.ballGreen = gltf.scene;
+      setupModel(this.ballGreen, 0.144);
+
+      const box = new Box3().setFromObject(this.ballGreen);
+      const size = box.getSize(new Vector3());
+      this.greenRadius = Math.min(size.x, size.y, size.z) / 2;
+      this.greenCenter.set(0, this.ballBaseY, -1.5);
+
+      createArcs(this.greenCenter, this.greenRadius, 2, this.greenArcs, greenBoltMat, greenBoltCoreMat);
+
+      this.greenPointLight = new PointLight(0x88ff00, 1.5, 2.0);
+      this.greenPointLight.position.copy(this.greenCenter);
+      this.greenPointLight.visible = false;
+      this.world.scene.add(this.greenPointLight);
+
+      this.greenAmbient = new AmbientLight(0x88ff00, 0.3);
+      this.greenAmbient.visible = false;
+      this.world.scene.add(this.greenAmbient);
+    });
+
+    // Ball2 — purple tier (score 30-60)
+    loader.load("/gltf/energyball2/ball2.glb", (gltf) => {
+      this.ballTeal = gltf.scene;
+      setupModel(this.ballTeal, 0.144);
+
+      const box = new Box3().setFromObject(this.ballTeal);
+      const size = box.getSize(new Vector3());
+      this.tealRadius = Math.min(size.x, size.y, size.z) / 2;
+      this.tealCenter.set(0, this.ballBaseY, -1.5);
+
+      // Purple point light on ball2
+      this.purplePointLight = new PointLight(0x8844cc, 1.5, 2.0);
+      this.purplePointLight.position.copy(this.tealCenter);
+      this.purplePointLight.visible = false;
+      this.world.scene.add(this.purplePointLight);
+
+      createArcs(this.tealCenter, this.tealRadius, 4, this.tealArcs);
+
+      this.purpleAmbient = new AmbientLight(0x8844cc, 0.3);
+      this.purpleAmbient.visible = false;
+      this.world.scene.add(this.purpleAmbient);
+    });
+
+    // Ball3 — higher tier (score > 60)
+    loader.load("/gltf/energyball3/ball3.glb", (gltf) => {
+      this.ballPurple = gltf.scene;
+      setupModel(this.ballPurple, 0.144);
+
+      const box = new Box3().setFromObject(this.ballPurple);
+      const size = box.getSize(new Vector3());
+      this.purpleRadius = Math.min(size.x, size.y, size.z) / 2;
+      this.purpleCenter.set(0, this.ballBaseY, -1.5);
+
+      createArcs(this.purpleCenter, this.purpleRadius, 8, this.purpleArcs);
+
+      this.bluePointLight = new PointLight(0x4488ff, 1.5, 2.0);
+      this.bluePointLight.position.copy(this.purpleCenter);
+      this.bluePointLight.visible = false;
+      this.world.scene.add(this.bluePointLight);
+
+      this.blueAmbient = new AmbientLight(0x4488ff, 0.3);
+      this.blueAmbient.visible = false;
+      this.world.scene.add(this.blueAmbient);
+    });
   }
 
   private setVisible(visible: boolean): void {
@@ -915,8 +1257,55 @@ export class HUDSystem extends createSystem({}) {
       !this.isDraggingBall &&
       !this.inCollectMode
     ) {
-      this.ballMesh.position.y = this.ballBaseY + Math.sin(time * 1.4) * 0.06;
       this.ballMesh.rotation.y = time * 0.4;
+      this.ballMesh.rotation.x = time * 0.2;
+
+      // Update point light positions
+      const activePointLight = this.greenPointLight?.visible ? this.greenPointLight
+        : this.purplePointLight?.visible ? this.purplePointLight
+        : this.bluePointLight?.visible ? this.bluePointLight
+        : null;
+      if (activePointLight) {
+        activePointLight.position.set(0, this.ballMesh.position.y, -1.5);
+      }
+    }
+
+    // Update tesla arcs
+    if (this.ballShowing) {
+      const arcs = this.ballMesh === this.ballPurple ? this.purpleArcs
+        : this.ballMesh === this.ballTeal ? this.tealArcs
+        : this.greenArcs;
+      const center = this.ballMesh === this.ballPurple ? this.purpleCenter
+        : this.ballMesh === this.ballTeal ? this.tealCenter
+        : this.greenCenter;
+      const radius = this.ballMesh === this.ballPurple ? this.purpleRadius
+        : this.ballMesh === this.ballTeal ? this.tealRadius
+        : this.greenRadius;
+
+      for (const a of arcs) {
+        a.strike.update(time);
+      }
+
+      this.arcRespawnTimer += delta;
+      if (this.arcRespawnTimer > 0.8 && arcs.length > 0) {
+        this.arcRespawnTimer = 0;
+        const idx = Math.floor(Math.random() * arcs.length);
+        const randomOnSphere = (r: number, c: Vector3) => {
+          const theta = Math.random() * Math.PI * 2;
+          const phi = Math.acos(2 * Math.random() - 1);
+          return new Vector3(
+            c.x + r * Math.sin(phi) * Math.cos(theta),
+            c.y + r * Math.sin(phi) * Math.sin(theta),
+            c.z + r * Math.cos(phi),
+          );
+        };
+        // Update center Y to match ball float
+        if (this.ballMesh) center.y = this.ballMesh.position.y;
+        const src = randomOnSphere(radius * 0.15, center);
+        const dst = randomOnSphere(radius * 1.0, center);
+        arcs[idx].strike.rayParameters.sourceOffset.copy(src);
+        arcs[idx].strike.rayParameters.destOffset.copy(dst);
+      }
     }
 
     // Scan state — also re-render when detection result changes
@@ -931,7 +1320,9 @@ export class HUDSystem extends createSystem({}) {
         this.setBallVisible(false);
         if (this.scoreEl) this.scoreEl.textContent = "--";
         if (this.detectionEl) this.detectionEl.style.display = "none";
+        if (this.tagsEl) this.tagsEl.style.display = "none";
         if (this.reasoningEl) this.reasoningEl.style.display = "none";
+        if (this.panelBubblePath) this.panelBubblePath.setAttribute("stroke", "url(#panelGrad)");
         if (this.promptEl) {
           this.promptEl.textContent = "Scan something to get a score";
           this.promptEl.style.display = "block";
@@ -940,6 +1331,7 @@ export class HUDSystem extends createSystem({}) {
           if (this.scanBtnLabel) this.scanBtnLabel.textContent = "SCAN";
           this.domScanBtn.disabled = false;
           this.domScanBtn.style.opacity = "1";
+          this.domScanBtn.querySelector(".voltron-scan-btn-inner")?.classList.remove("voltron-btn-glow");
         }
         break;
 
@@ -951,11 +1343,13 @@ export class HUDSystem extends createSystem({}) {
           this.promptEl.style.display = "block";
         }
         if (this.detectionEl) this.detectionEl.style.display = "none";
+        if (this.tagsEl) this.tagsEl.style.display = "none";
         if (this.reasoningEl) this.reasoningEl.style.display = "none";
         if (this.domScanBtn) {
           if (this.scanBtnLabel) this.scanBtnLabel.textContent = "SCANNING";
           this.domScanBtn.disabled = true;
           this.domScanBtn.style.opacity = "0.5";
+          this.domScanBtn.querySelector(".voltron-scan-btn-inner")?.classList.remove("voltron-btn-glow");
         }
         break;
 
@@ -978,12 +1372,30 @@ export class HUDSystem extends createSystem({}) {
           if (this.detectionEl) this.detectionEl.style.display = "none";
         }
 
+        if (this.tagsEl) {
+          const elements = ScanData.elements;
+          if (elements.length > 0) {
+            this.tagsEl.textContent = elements.join(" · ");
+            this.tagsEl.style.display = "block";
+          } else {
+            this.tagsEl.style.display = "none";
+          }
+        }
+
         if (this.reasoningEl) {
-          this.reasoningEl.textContent = ScanData.reasoning;
-          this.reasoningEl.style.display = ScanData.reasoning ? "block" : "none";
+          const noMatch = effectiveScore < 10;
+          const reasoningText = ScanData.reasoning || (noMatch ? "No match, please scan again" : "");
+          this.reasoningEl.textContent = reasoningText;
+          this.reasoningEl.style.display = reasoningText ? "block" : "none";
+          this.reasoningEl.style.fontWeight = noMatch ? "700" : "400";
+        }
+
+        // Yellow stroke on panel when no match
+        if (this.panelBubblePath) {
+          this.panelBubblePath.setAttribute("stroke", effectiveScore < 10 ? "#FFD700" : "url(#panelGrad)");
         }
         // Button label: COLLECT when score qualifies, SCAN AGAIN otherwise
-        this.shouldCollect = effectiveScore > 30;
+        this.shouldCollect = effectiveScore > 10;
         if (this.domScanBtn) {
           if (this.scanBtnLabel)
             this.scanBtnLabel.textContent = this.shouldCollect
@@ -992,10 +1404,15 @@ export class HUDSystem extends createSystem({}) {
           this.domScanBtn.disabled = false;
           this.domScanBtn.style.opacity = "1";
           this.domScanBtn.style.display = "grid";
+          if (this.shouldCollect) {
+            this.domScanBtn.querySelector(".voltron-scan-btn-inner")?.classList.add("voltron-btn-glow");
+          } else {
+            this.domScanBtn.querySelector(".voltron-scan-btn-inner")?.classList.remove("voltron-btn-glow");
+          }
         }
 
         // Show ball when score > 30 (purple if > 60)
-        this.setBallVisible(effectiveScore > 30, effectiveScore);
+        this.setBallVisible(effectiveScore > 10, effectiveScore);
         break;
       }
 
@@ -1011,6 +1428,7 @@ export class HUDSystem extends createSystem({}) {
           if (this.scanBtnLabel) this.scanBtnLabel.textContent = "TRY AGAIN";
           this.domScanBtn.disabled = false;
           this.domScanBtn.style.opacity = "1";
+          this.domScanBtn.querySelector(".voltron-scan-btn-inner")?.classList.remove("voltron-btn-glow");
         }
         break;
     }

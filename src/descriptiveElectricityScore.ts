@@ -30,11 +30,32 @@ function model() {
   );
 }
 
-const MOCK_RESPONSE: ElectricityScore = {
-  score: 42,
-  reasoning: "The oracle has lost power — deeply ironic. Based on cosmic vibes alone, this scene radiates a mysterious 42 volts of pure ambiguity. Could be a live wire. Could be a potato. The universe declines to clarify.",
-  elements: ["mystery", "vibes", "potential energy"],
-};
+const MOCK_RESPONSES: ElectricityScore[] = [
+  {
+    score: 42,
+    reasoning: "42 volts of pure ambiguity. Could be a live wire. Could be a potato.",
+    elements: ["mystery", "vibes", "potential energy"],
+  },
+  {
+    score: 22,
+    reasoning: "The electrical presence of a AA battery in a sock drawer. Watt a tragedy.",
+    elements: ["static cling", "lukewarm sparks", "participation trophy"],
+  },
+  {
+    score: 78,
+    reasoning: "1.21 GIGAWATTS! This should come with a warning label and a rubber mat.",
+    elements: ["thunderbolts", "raw voltage", "arc reactor energy", "danger noodles"],
+  },
+  {
+    score: 3,
+    reasoning: "",
+    elements: [],
+  },
+];
+
+function getNextMock(): ElectricityScore {
+  return MOCK_RESPONSES[Math.floor(Math.random() * MOCK_RESPONSES.length)];
+}
 
 export async function analyzeForElectricityDescriptive(
   imageBase64: string,
@@ -42,7 +63,7 @@ export async function analyzeForElectricityDescriptive(
 ): Promise<ElectricityScore> {
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 1200));
-    return MOCK_RESPONSE;
+    return getNextMock();
   }
 
   const delays = [2000, 5000, 10000];
@@ -61,10 +82,10 @@ export async function analyzeForElectricityDescriptive(
       lastErr = err;
       const msg = String(err);
       const retryable = msg.includes("429") || msg.includes("503") || msg.includes("quota") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("UNAVAILABLE");
-      if (!retryable) return MOCK_RESPONSE;
+      if (!retryable) return getNextMock();
       if (attempt < delays.length) await new Promise((r) => setTimeout(r, delays[attempt]));
     }
   }
   console.warn("[ElectricityScore] All retries exhausted, returning mock:", lastErr);
-  return MOCK_RESPONSE;
+  return getNextMock();
 }

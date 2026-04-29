@@ -10,11 +10,49 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+    <link rel="preload" href="/VoltronSplash.png" as="image">
     <style>
       body, button { font-family: 'Space Mono', monospace; }
     </style>
   </head>
   <body style="margin: 0">
+    <div id="video-splash" style="position:fixed;inset:0;background:#000;display:flex;align-items:center;justify-content:center;z-index:100;"></div>
+    <script>
+      (function() {
+        var o = document.getElementById('video-splash');
+
+        var bootId = '__SERVER_BOOT_ID__';
+        if (sessionStorage.getItem('videoPlayed') === bootId) {
+          o._done = true;
+          o.style.display = 'none';
+          return;
+        }
+
+        var v = document.createElement('video');
+        v.muted = true;
+        v.playsInline = true;
+        v.setAttribute('playsinline', '');
+        v.setAttribute('webkit-playsinline', '');
+        v.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain';
+        v.src = '/zoomies-mov/Logo-animation-Test1.mp4';
+        o.appendChild(v);
+
+        function done() {
+          if (o._done) return;
+          o._done = true;
+          sessionStorage.setItem('videoPlayed', bootId);
+          v.pause();
+          o.style.display = 'none';
+          if (window._onVideoSplashDone) window._onVideoSplashDone();
+        }
+
+        v.addEventListener('ended', done);
+        v.addEventListener('error', done);
+        setTimeout(done, 6000);
+
+        v.play().then(function() { v.muted = false; }).catch(function() {});
+      })();
+    </script>
     <div id="scene-container"></div>
     <script type="module" src="/src/index.ts"></script>
     <script>

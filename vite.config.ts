@@ -37,6 +37,17 @@ const devHost = devHostForLan();
 const mdnsHost = localMdnsName();
 const certDomains = [devHost, "localhost", ...(mdnsHost ? [mdnsHost] : [])];
 
+// Stamp each server start so the client can tell "restart" from "reload"
+const serverBootId = Date.now().toString(36);
+function bootIdPlugin() {
+  return {
+    name: 'boot-id',
+    transformIndexHtml(html: string) {
+      return html.replace('__SERVER_BOOT_ID__', serverBootId);
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
     basicSsl({ domains: certDomains }),
@@ -49,6 +60,7 @@ export default defineConfig({
     }),
 
     compileUIKit({ sourceDir: "ui", outputDir: "public/ui", verbose: true }),
+    bootIdPlugin(),
   ],
   server: {
     host: "0.0.0.0",

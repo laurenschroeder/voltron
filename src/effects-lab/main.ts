@@ -269,7 +269,7 @@ function loadBall(key: string) {
       arcMeshes.push(mesh);
     }
 
-    console.log(`Loaded ${cfg.glb} — ${cfg.arcCount} arcs`);
+
   });
 }
 

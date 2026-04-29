@@ -49,30 +49,22 @@ export function startCamera(): void {
 export const scanPlugins: Array<(base64: string, canvas: HTMLCanvasElement) => Promise<void>> = [];
 
 export function triggerScan(): void {
-  console.log("[scan] triggerScan called, state:", ScanData.state);
-  if (ScanData.state === "scanning") {
-    console.log("[scan] already scanning, ignoring");
-    return;
-  }
+  if (ScanData.state === "scanning") return;
 
   const video = _video;
   const canvas = _offscreen;
   if (!video || !canvas) {
-    console.error("[scan] missing video or canvas", { video, canvas });
+    console.error("[scan] missing video or canvas");
     return;
   }
-
-  console.log("[scan] video dimensions:", video.videoWidth, "x", video.videoHeight, "readyState:", video.readyState);
 
   if (!video.videoWidth) {
     ScanData.state = "error";
     ScanData.errorMessage = "Camera not ready — allow camera access and try again";
-    console.error("[scan] camera not ready");
     return;
   }
 
   ScanData.state = "scanning";
-  console.log("[scan] capturing frame...");
 
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
@@ -80,22 +72,18 @@ export function triggerScan(): void {
   ctx.drawImage(video, 0, 0);
   const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
   const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
-  console.log("[scan] frame captured, base64 length:", base64.length);
 
-  // Store snapshot data — also shown as fixed thumbnail bottom-left
   if (_snapshot) {
     _snapshot.src = dataUrl;
     _snapshot.style.display = "block";
   }
   ScanData.lastSnapshot = dataUrl;
 
-  console.log("[scan] calling analyzeForElectricityDescriptive...");
   const tasks: Promise<unknown>[] = [];
 
   if (DESCRIPTIVE_ENABLED) {
     tasks.push(
       analyzeForElectricityDescriptive(base64).then((result) => {
-        console.log("[scan] result:", result);
         ScanData.score = result.score;
         ScanData.reasoning = result.reasoning;
         ScanData.elements = result.elements;
@@ -114,10 +102,9 @@ export function triggerScan(): void {
       ScanData.errorMessage =
         reason instanceof Error ? reason.message : "Analysis failed";
       ScanData.state = "error";
-      console.error("[scan] analyzeForElectricityDescriptive error:", reason);
+      console.error("[scan] analysis failed:", reason);
     } else {
       ScanData.state = "result";
-      console.log("[scan] state set to result");
     }
   });
 }

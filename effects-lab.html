@@ -12,16 +12,41 @@
       position: absolute;
       top: 12px;
       left: 12px;
-      color: #aaa;
+      color: #666;
       font-family: monospace;
       font-size: 13px;
       pointer-events: none;
       user-select: none;
     }
+    #ball-switcher {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      display: flex;
+      gap: 12px;
+      font-family: monospace;
+      font-size: 13px;
+      color: #666;
+      user-select: none;
+    }
+    #ball-switcher label {
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    #ball-switcher input[type="radio"] {
+      accent-color: #888;
+    }
   </style>
 </head>
 <body>
   <div id="info">Energy Ball Effects Lab — orbit: drag · zoom: scroll · pan: right-drag</div>
+  <div id="ball-switcher">
+    <label><input type="radio" name="ball" value="1" />ball1</label>
+    <label><input type="radio" name="ball" value="2" />ball2</label>
+    <label><input type="radio" name="ball" value="3" checked />ball3</label>
+  </div>
   <script type="module" src="/src/effects-lab/main.ts"></script>
 </body>
 </html>

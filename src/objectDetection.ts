@@ -55,7 +55,6 @@ export async function loadReferences(): Promise<void> {
         return { name, base64, mimeType } as ReferencePhoto;
       }),
     );
-    console.log(`[ObjectDetection] Loaded ${references.length} reference(s):`, references.map((r) => r.name));
   } catch (err) {
     console.warn("[ObjectDetection] Could not load references:", err);
   }
@@ -183,14 +182,12 @@ async function tryTFJS(canvas: HTMLCanvasElement): Promise<MatchResult> {
       const img = await imgFromDataUrl(`data:${ref.mimeType};base64,${ref.base64}`);
       // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       ref.topLabels = (await _tfModel.classify(img, 10)) as ClassPrediction[];
-      console.log(`[TF.js] Reference "${ref.name}" top labels:`, ref.topLabels.slice(0, 3));
     }
   }
 
   const cameraImg = await canvasToImg(canvas);
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
   const cameraLabels = (await _tfModel.classify(cameraImg, 20)) as ClassPrediction[];
-  console.log("[TF.js] Camera top labels:", cameraLabels.slice(0, 5));
 
   const cameraWords = labelWordMap(cameraLabels);
 

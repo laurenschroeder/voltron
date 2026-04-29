@@ -1095,7 +1095,7 @@ export class HUDSystem extends createSystem({}) {
     ) => {
       for (let i = 0; i < count; i++) {
         const src = randomOnSphere(radius * 0.15, center);
-        const dst = randomOnSphere(radius * 1.0, center);
+        const dst = randomOnSphere(radius * 0.85, center);
         const strike = new LightningStrike({
           sourceOffset: src,
           destOffset: dst,
@@ -1302,7 +1302,7 @@ export class HUDSystem extends createSystem({}) {
         // Update center Y to match ball float
         if (this.ballMesh) center.y = this.ballMesh.position.y;
         const src = randomOnSphere(radius * 0.15, center);
-        const dst = randomOnSphere(radius * 1.0, center);
+        const dst = randomOnSphere(radius * 0.85, center);
         arcs[idx].strike.rayParameters.sourceOffset.copy(src);
         arcs[idx].strike.rayParameters.destOffset.copy(dst);
       }

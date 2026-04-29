@@ -32,7 +32,7 @@ import { ObjectDetectionData } from "./objectDetection.js";
 /** Shared flag — ToolbarSystem reads this to lock itself during collect mode. */
 export let collectModeActive = false;
 
-const TIMER_DURATION = 30; // seconds (testing)
+const TIMER_DURATION = 3 * 60; // seconds
 const TIMER_RADIUS = 32;
 const TIMER_CIRCUMFERENCE = 2 * Math.PI * TIMER_RADIUS; // ≈ 201.06
 
@@ -884,9 +884,12 @@ export class HUDSystem extends createSystem({}) {
   }
 
   private setArcsVisible(visible: boolean): void {
-    const arcs = this.ballMesh === this.ballPurple ? this.purpleArcs
-      : this.ballMesh === this.ballTeal ? this.tealArcs
-      : this.greenArcs;
+    const arcs =
+      this.ballMesh === this.ballPurple
+        ? this.purpleArcs
+        : this.ballMesh === this.ballTeal
+          ? this.tealArcs
+          : this.greenArcs;
     for (const a of arcs) a.mesh.visible = visible;
   }
 
@@ -942,12 +945,18 @@ export class HUDSystem extends createSystem({}) {
       }
       if (this.ballMesh) this.ballMesh.position.set(0, this.ballBaseY, -1.5);
       // Reset arc endpoints to ball center so they don't linger at old positions
-      const center = this.ballMesh === this.ballPurple ? this.purpleCenter
-        : this.ballMesh === this.ballTeal ? this.tealCenter
-        : this.greenCenter;
-      const radius = this.ballMesh === this.ballPurple ? this.purpleRadius
-        : this.ballMesh === this.ballTeal ? this.tealRadius
-        : this.greenRadius;
+      const center =
+        this.ballMesh === this.ballPurple
+          ? this.purpleCenter
+          : this.ballMesh === this.ballTeal
+            ? this.tealCenter
+            : this.greenCenter;
+      const radius =
+        this.ballMesh === this.ballPurple
+          ? this.purpleRadius
+          : this.ballMesh === this.ballTeal
+            ? this.tealRadius
+            : this.greenRadius;
       center.set(0, this.ballBaseY, -1.5);
       for (const a of arcs) {
         const theta1 = Math.random() * Math.PI * 2;
@@ -1011,10 +1020,16 @@ export class HUDSystem extends createSystem({}) {
     const loader = new GLTFLoader();
     const texLoader = new TextureLoader();
 
-    const metallic = texLoader.load("/textures/Metal_scratched_009_metallic.jpg");
-    const roughness = texLoader.load("/textures/Metal_scratched_009_roughness.jpg");
+    const metallic = texLoader.load(
+      "/textures/Metal_scratched_009_metallic.jpg",
+    );
+    const roughness = texLoader.load(
+      "/textures/Metal_scratched_009_roughness.jpg",
+    );
     const normal = texLoader.load("/textures/Metal_scratched_009_normal.jpg");
-    const ao = texLoader.load("/textures/Metal_scratched_009_ambientOcclusion.jpg");
+    const ao = texLoader.load(
+      "/textures/Metal_scratched_009_ambientOcclusion.jpg",
+    );
 
     [metallic, roughness, ao].forEach((t) => {
       t.wrapS = t.wrapT = ClampToEdgeWrapping;
@@ -1145,7 +1160,14 @@ export class HUDSystem extends createSystem({}) {
       this.greenRadius = Math.min(size.x, size.y, size.z) / 2;
       this.greenCenter.set(0, this.ballBaseY, -1.5);
 
-      createArcs(this.greenCenter, this.greenRadius, 2, this.greenArcs, greenBoltMat, greenBoltCoreMat);
+      createArcs(
+        this.greenCenter,
+        this.greenRadius,
+        2,
+        this.greenArcs,
+        greenBoltMat,
+        greenBoltCoreMat,
+      );
 
       this.greenPointLight = new PointLight(0x88ff00, 1.5, 2.0);
       this.greenPointLight.position.copy(this.greenCenter);
@@ -1261,10 +1283,13 @@ export class HUDSystem extends createSystem({}) {
       this.ballMesh.rotation.x = time * 0.2;
 
       // Update point light positions
-      const activePointLight = this.greenPointLight?.visible ? this.greenPointLight
-        : this.purplePointLight?.visible ? this.purplePointLight
-        : this.bluePointLight?.visible ? this.bluePointLight
-        : null;
+      const activePointLight = this.greenPointLight?.visible
+        ? this.greenPointLight
+        : this.purplePointLight?.visible
+          ? this.purplePointLight
+          : this.bluePointLight?.visible
+            ? this.bluePointLight
+            : null;
       if (activePointLight) {
         activePointLight.position.set(0, this.ballMesh.position.y, -1.5);
       }
@@ -1272,15 +1297,24 @@ export class HUDSystem extends createSystem({}) {
 
     // Update tesla arcs
     if (this.ballShowing) {
-      const arcs = this.ballMesh === this.ballPurple ? this.purpleArcs
-        : this.ballMesh === this.ballTeal ? this.tealArcs
-        : this.greenArcs;
-      const center = this.ballMesh === this.ballPurple ? this.purpleCenter
-        : this.ballMesh === this.ballTeal ? this.tealCenter
-        : this.greenCenter;
-      const radius = this.ballMesh === this.ballPurple ? this.purpleRadius
-        : this.ballMesh === this.ballTeal ? this.tealRadius
-        : this.greenRadius;
+      const arcs =
+        this.ballMesh === this.ballPurple
+          ? this.purpleArcs
+          : this.ballMesh === this.ballTeal
+            ? this.tealArcs
+            : this.greenArcs;
+      const center =
+        this.ballMesh === this.ballPurple
+          ? this.purpleCenter
+          : this.ballMesh === this.ballTeal
+            ? this.tealCenter
+            : this.greenCenter;
+      const radius =
+        this.ballMesh === this.ballPurple
+          ? this.purpleRadius
+          : this.ballMesh === this.ballTeal
+            ? this.tealRadius
+            : this.greenRadius;
 
       for (const a of arcs) {
         a.strike.update(time);
@@ -1322,7 +1356,8 @@ export class HUDSystem extends createSystem({}) {
         if (this.detectionEl) this.detectionEl.style.display = "none";
         if (this.tagsEl) this.tagsEl.style.display = "none";
         if (this.reasoningEl) this.reasoningEl.style.display = "none";
-        if (this.panelBubblePath) this.panelBubblePath.setAttribute("stroke", "url(#panelGrad)");
+        if (this.panelBubblePath)
+          this.panelBubblePath.setAttribute("stroke", "url(#panelGrad)");
         if (this.promptEl) {
           this.promptEl.textContent = "Scan something to get a score";
           this.promptEl.style.display = "block";
@@ -1331,7 +1366,9 @@ export class HUDSystem extends createSystem({}) {
           if (this.scanBtnLabel) this.scanBtnLabel.textContent = "SCAN";
           this.domScanBtn.disabled = false;
           this.domScanBtn.style.opacity = "1";
-          this.domScanBtn.querySelector(".voltron-scan-btn-inner")?.classList.remove("voltron-btn-glow");
+          this.domScanBtn
+            .querySelector(".voltron-scan-btn-inner")
+            ?.classList.remove("voltron-btn-glow");
         }
         break;
 
@@ -1349,7 +1386,9 @@ export class HUDSystem extends createSystem({}) {
           if (this.scanBtnLabel) this.scanBtnLabel.textContent = "SCANNING";
           this.domScanBtn.disabled = true;
           this.domScanBtn.style.opacity = "0.5";
-          this.domScanBtn.querySelector(".voltron-scan-btn-inner")?.classList.remove("voltron-btn-glow");
+          this.domScanBtn
+            .querySelector(".voltron-scan-btn-inner")
+            ?.classList.remove("voltron-btn-glow");
         }
         break;
 
@@ -1384,7 +1423,9 @@ export class HUDSystem extends createSystem({}) {
 
         if (this.reasoningEl) {
           const noMatch = effectiveScore < 10;
-          const reasoningText = ScanData.reasoning || (noMatch ? "No match, please scan again" : "");
+          const reasoningText =
+            ScanData.reasoning ||
+            (noMatch ? "No match, please scan again" : "");
           this.reasoningEl.textContent = reasoningText;
           this.reasoningEl.style.display = reasoningText ? "block" : "none";
           this.reasoningEl.style.fontWeight = noMatch ? "700" : "400";
@@ -1392,7 +1433,10 @@ export class HUDSystem extends createSystem({}) {
 
         // Yellow stroke on panel when no match
         if (this.panelBubblePath) {
-          this.panelBubblePath.setAttribute("stroke", effectiveScore < 10 ? "#FFD700" : "url(#panelGrad)");
+          this.panelBubblePath.setAttribute(
+            "stroke",
+            effectiveScore < 10 ? "#FFD700" : "url(#panelGrad)",
+          );
         }
         // Button label: COLLECT when score qualifies, SCAN AGAIN otherwise
         this.shouldCollect = effectiveScore > 10;
@@ -1405,9 +1449,13 @@ export class HUDSystem extends createSystem({}) {
           this.domScanBtn.style.opacity = "1";
           this.domScanBtn.style.display = "grid";
           if (this.shouldCollect) {
-            this.domScanBtn.querySelector(".voltron-scan-btn-inner")?.classList.add("voltron-btn-glow");
+            this.domScanBtn
+              .querySelector(".voltron-scan-btn-inner")
+              ?.classList.add("voltron-btn-glow");
           } else {
-            this.domScanBtn.querySelector(".voltron-scan-btn-inner")?.classList.remove("voltron-btn-glow");
+            this.domScanBtn
+              .querySelector(".voltron-scan-btn-inner")
+              ?.classList.remove("voltron-btn-glow");
           }
         }
 
@@ -1428,7 +1476,9 @@ export class HUDSystem extends createSystem({}) {
           if (this.scanBtnLabel) this.scanBtnLabel.textContent = "TRY AGAIN";
           this.domScanBtn.disabled = false;
           this.domScanBtn.style.opacity = "1";
-          this.domScanBtn.querySelector(".voltron-scan-btn-inner")?.classList.remove("voltron-btn-glow");
+          this.domScanBtn
+            .querySelector(".voltron-scan-btn-inner")
+            ?.classList.remove("voltron-btn-glow");
         }
         break;
     }

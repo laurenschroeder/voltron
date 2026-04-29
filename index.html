@@ -7,69 +7,145 @@
       content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"
     />
     <title>voltron</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
-    <link rel="preload" href="/VoltronSplash.png" as="image">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="preload" href="/VoltronSplash.png" as="image" />
     <style>
-      body, button { font-family: 'Space Mono', monospace; }
+      body,
+      button {
+        font-family: "Space Mono", monospace;
+      }
     </style>
   </head>
   <body style="margin: 0">
-    <div id="video-splash" style="position:fixed;inset:0;background:#000;display:flex;align-items:center;justify-content:center;z-index:100;"></div>
+    <div
+      id="video-splash"
+      style="
+        position: fixed;
+        inset: 0;
+        background: #000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+      "
+    ></div>
     <script>
-      (function() {
-        var o = document.getElementById('video-splash');
+      (function () {
+        var o = document.getElementById("video-splash");
 
-        var bootId = '__SERVER_BOOT_ID__';
-        if (sessionStorage.getItem('videoPlayed') === bootId) {
+        var bootId = "__SERVER_BOOT_ID__";
+        if (sessionStorage.getItem("videoPlayed") === bootId) {
           o._done = true;
-          o.style.display = 'none';
+          o.style.display = "none";
           return;
         }
 
-        var v = document.createElement('video');
+        var debug = new URLSearchParams(location.search).get("vdebug") === "1";
+        function log(msg) {
+          if (debug) console.log("[splash]", msg);
+        }
+
+        var v = document.createElement("video");
         v.muted = true;
         v.autoplay = true;
+        v.defaultMuted = true;
         v.playsInline = true;
-        v.setAttribute('playsinline', '');
-        v.setAttribute('webkit-playsinline', '');
-        v.setAttribute('preload', 'auto');
-        v.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain';
-        v.src = '/zoomies-mov/Logo-animation-Test1.mp4';
+        v.setAttribute("muted", "");
+        v.setAttribute("autoplay", "");
+        v.setAttribute("playsinline", "");
+        v.setAttribute("webkit-playsinline", "");
+        v.setAttribute("preload", "auto");
+        v.style.cssText = "max-width:100%;max-height:100%;object-fit:contain";
+        v.src = "/zoomies-mov/Logo-animation-Test1.mp4";
         o.appendChild(v);
 
         function done() {
           if (o._done) return;
           o._done = true;
-          sessionStorage.setItem('videoPlayed', bootId);
+          sessionStorage.setItem("videoPlayed", bootId);
           v.pause();
-          o.style.display = 'none';
+          o.style.display = "none";
           if (window._onVideoSplashDone) window._onVideoSplashDone();
         }
 
-        function tryPlay() {
-          v.play().then(function() { v.muted = false; }).catch(function() {});
+        var played = false;
+        function tryPlay(reason) {
+          if (played) return;
+          log(
+            "tryPlay " +
+              reason +
+              " readyState=" +
+              v.readyState +
+              " networkState=" +
+              v.networkState,
+          );
+          var p = v.play();
+          if (p && p.then) {
+            p.then(function () {
+              played = true;
+              log("play() resolved");
+              v.muted = false;
+            }).catch(function (err) {
+              log(
+                "play() rejected: " +
+                  (err && err.name) +
+                  " " +
+                  (err && err.message),
+              );
+            });
+          }
         }
 
-        v.addEventListener('ended', done);
-        v.addEventListener('error', done);
+        [
+          "loadstart",
+          "loadedmetadata",
+          "loadeddata",
+          "canplay",
+          "canplaythrough",
+          "playing",
+          "stalled",
+          "suspend",
+          "waiting",
+        ].forEach(function (ev) {
+          v.addEventListener(ev, function () {
+            log(ev + " rs=" + v.readyState);
+            if (
+              ev === "canplay" ||
+              ev === "loadeddata" ||
+              ev === "canplaythrough"
+            )
+              tryPlay(ev);
+          });
+        });
+        v.addEventListener("error", function () {
+          log(
+            "error code=" +
+              (v.error && v.error.code) +
+              " msg=" +
+              (v.error && v.error.message),
+          );
+          done();
+        });
+        v.addEventListener("ended", done);
         setTimeout(done, 6000);
 
-        if (v.readyState >= 3) {
-          tryPlay();
-        } else {
-          v.addEventListener('canplay', tryPlay);
-        }
+        tryPlay("immediate");
       })();
     </script>
     <div id="scene-container"></div>
     <script type="module" src="/src/index.ts"></script>
     <script>
-      if (new URLSearchParams(location.search).get('debug') === '1') {
-        var s = document.createElement('script');
-        s.src = 'https://cdn.jsdelivr.net/npm/eruda';
-        s.onload = function() { eruda.init(); };
+      if (new URLSearchParams(location.search).get("debug") === "1") {
+        var s = document.createElement("script");
+        s.src = "https://cdn.jsdelivr.net/npm/eruda";
+        s.onload = function () {
+          eruda.init();
+        };
         document.head.appendChild(s);
       }
     </script>

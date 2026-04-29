@@ -13,8 +13,8 @@ const PROMPT = `You are an unhinged electrical engineer who rates everything on 
 
 Roast or celebrate what you see. If it's boring, lament it. If it's electric, lose your mind. Be specific — call out exactly what you see and why it earns its score. Puns are mandatory.
 
-Respond ONLY with valid JSON — no markdown, no explanation outside it:
-{"score": <number>, "reasoning": "<2-3 funny, punny sentences>", "elements": ["<thing1>", "<thing2>", ...]}`;
+Respond ONLY with valid JSON — no markdown, no explanation outside it, max 5 elements:
+{"score": <number>, "reasoning": "<1-2 funny, punny sentences, max 20 words>", "elements": ["<thing1>", "<thing2>", ...]}`;
 
 let _client: GoogleGenerativeAI | null = null;
 function model() {

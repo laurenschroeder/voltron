@@ -2,7 +2,7 @@
 
 Voltron Vert is an XR hackathon game where players scan their surroundings, find energy sources, and collect energy balls before time runs out. Explore the scene, react quickly, and build up your score through fast object detection and collection.
 
-Try the game and see how much energy you can gather.
+**Try the game and see how much energy you can gather!**
 
 Voltron Vert is built with TypeScript, Vite, and the Immersive Web SDK, using WebXR for immersive gameplay and Three.js-powered 3D rendering through IWSDK. The project combines real-time scanning interactions, custom HUD UI, animated energy effects, and GLB assets to create a prototype for headset, smart glasses and mobile using browser-based XR.
 

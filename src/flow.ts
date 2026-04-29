@@ -28,6 +28,7 @@ export class FlowSystem extends createSystem({}) {
   private cardInnerEl: HTMLDivElement | null = null;
   private cardFrontEl: HTMLDivElement | null = null;
   private cardBackEl: HTMLDivElement | null = null;
+  private cardOuterEl: HTMLDivElement | null = null;
   private newGameBtnOuterEl: HTMLDivElement | null = null;
   private cardFlipped = false;
   private cardAnimating = false;
@@ -107,6 +108,13 @@ export class FlowSystem extends createSystem({}) {
         cursor: pointer;
         -webkit-tap-highlight-color: transparent;
         overflow: hidden;
+      }
+      @keyframes voltron-card-breathe {
+        0%, 100% { box-shadow: 0 0 8px 3px rgba(72,249,255,0.15), 0 0 16px 6px rgba(188,74,255,0.08); }
+        50%       { box-shadow: 0 0 22px 10px rgba(72,249,255,0.45), 0 0 40px 18px rgba(188,74,255,0.25); }
+      }
+      .voltron-card-glow {
+        animation: voltron-card-breathe 2.4s ease-in-out infinite;
       }
       .voltron-card-face {
         position: absolute;
@@ -595,19 +603,20 @@ export class FlowSystem extends createSystem({}) {
     this.cardBackEl = cardBack;
 
     results.appendChild(cardOuter);
+    this.cardOuterEl = cardOuter;
 
     // ── Tap or swipe to flip ──────────────────────────────────────────────
+    const removeGlow = () => cardInner.classList.remove("voltron-card-glow");
     let touchStartX = 0;
     cardInner.addEventListener("touchstart", (e) => {
       touchStartX = e.touches[0].clientX;
+      removeGlow();
     }, { passive: true });
     cardInner.addEventListener("touchend", (e) => {
-      // Flip on any touch end — tap (small movement) or swipe (large movement)
       e.preventDefault();
       this.flipCard();
     });
-    // Mouse / non-touch pointer (desktop testing)
-    cardInner.addEventListener("click", () => this.flipCard());
+    cardInner.addEventListener("click", () => { removeGlow(); this.flipCard(); });
 
     // ── PLAY NEW GAME button (hidden until card flipped) ──────────────────
     const newGameOuter = document.createElement("div");
@@ -700,12 +709,29 @@ export class FlowSystem extends createSystem({}) {
     pauseCamera();
     this.cardFlipped = false;
     this.cardAnimating = false;
-    if (this.cardInnerEl) this.cardInnerEl.style.transform = "rotateY(0deg)";
+    if (this.cardInnerEl) {
+      this.cardInnerEl.style.transform = "rotateY(0deg)";
+      this.cardInnerEl.classList.add("voltron-card-glow");
+    }
     if (this.cardFrontEl) this.cardFrontEl.style.display = "flex";
     if (this.cardBackEl)  this.cardBackEl.style.display  = "none";
-    if (this.newGameBtnOuterEl) this.newGameBtnOuterEl.style.display = "none";
-    if (this.resultsTotalScoreEl) this.resultsTotalScoreEl.textContent = String(ScanData.score || score);
-    if (this.resultsReasoningEl) this.resultsReasoningEl.textContent = ScanData.reasoning;
+
+    if (score < 100) {
+      if (this.cardOuterEl) this.cardOuterEl.style.display = "none";
+      if (this.newGameBtnOuterEl) this.newGameBtnOuterEl.style.display = "block";
+    } else {
+      if (this.cardOuterEl) this.cardOuterEl.style.display = "block";
+      if (this.newGameBtnOuterEl) this.newGameBtnOuterEl.style.display = "none";
+    }
+
+    if (this.resultsTotalScoreEl) this.resultsTotalScoreEl.textContent = String(score);
+    if (this.resultsReasoningEl) {
+      if (score >= 100) {
+        this.resultsReasoningEl.textContent = "Nikola Tesla's ghost just appeared, wept a single tear of pride, and whispered 'finally, someone worthy of my coils.'";
+      } else {
+        this.resultsReasoningEl.textContent = "Not quite enough juice to power a lightning bolt — but hey, even Edison failed a thousand times. Recharge and try again!";
+      }
+    }
     if (this.resultsEl) this.resultsEl.style.display = "flex";
   }
 
